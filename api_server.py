@@ -40,17 +40,15 @@ def detect_onlyfans():
             }), 400
         
         bio_link = data['bio_link']
-        headless = data.get('headless', True)  # Default to headless
         
         logger.info(f"Processing bio link: {bio_link}")
         
         # Run detection (async function)
-        result = asyncio.run(detect_onlyfans_in_bio_link(bio_link, headless))
+        result = asyncio.run(detect_onlyfans_in_bio_link(bio_link))
         
         # Add request info to result
         result['request'] = {
-            'bio_link': bio_link,
-            'headless': headless
+            'bio_link': bio_link
         }
         
         logger.info(f"Detection result: {result['has_onlyfans']} for {bio_link}")
@@ -80,7 +78,7 @@ def detect_get():
         logger.info(f"Processing bio link (GET): {bio_link}")
         
         # Run detection
-        result = asyncio.run(detect_onlyfans_in_bio_link(bio_link, headless=True))
+        result = asyncio.run(detect_onlyfans_in_bio_link(bio_link))
         
         # Add request info
         result['request'] = {
@@ -128,7 +126,7 @@ def batch_detect():
         results = []
         for bio_link in bio_links:
             try:
-                result = asyncio.run(detect_onlyfans_in_bio_link(bio_link, headless=True))
+                result = asyncio.run(detect_onlyfans_in_bio_link(bio_link))
                 result['request'] = {'bio_link': bio_link}
                 results.append(result)
             except Exception as e:
