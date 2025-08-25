@@ -7,6 +7,7 @@ Combines fast HTTP detection with interactive Playwright for complex cases
 import re
 import asyncio
 import httpx
+import os
 from urllib.parse import urljoin, urlparse
 from typing import Dict, List, Optional, Tuple
 import time
@@ -294,13 +295,25 @@ class HybridFinalDetector:
                 
                 # Try to use system Chrome if available (Heroku buildpack)
                 try:
-                    browser = await p.chromium.launch(
-                        channel="chrome",
-                        headless=True,
-                        args=chrome_args
-                    )
-                except Exception:
+                    # Check for Heroku Chrome environment variables
+                    chrome_bin = os.environ.get('CHROME_BIN') or os.environ.get('CHROME_PATH')
+                    if chrome_bin and os.path.exists(chrome_bin):
+                        browser = await p.chromium.launch(
+                            executable_path=chrome_bin,
+                            headless=True,
+                            args=chrome_args
+                        )
+                        self.results["debug_info"].append(f"Using Heroku Chrome: {chrome_bin}")
+                    else:
+                        browser = await p.chromium.launch(
+                            channel="chrome",
+                            headless=True,
+                            args=chrome_args
+                        )
+                        self.results["debug_info"].append("Using Chrome channel")
+                except Exception as e:
                     # Fallback to default chromium
+                    self.results["debug_info"].append(f"Chrome launch failed: {str(e)}, falling back to chromium")
                     browser = await p.chromium.launch(
                         headless=True,
                         args=chrome_args
@@ -438,7 +451,43 @@ class HybridFinalDetector:
         """Interactive detection for beacons.ai with aggressive human-like behavior"""
         try:
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
+                # Heroku-specific Chrome configuration
+                chrome_args = [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-accelerated-2d-canvas',
+                    '--no-first-run',
+                    '--no-zygote',
+                    '--single-process',
+                    '--disable-gpu'
+                ]
+                
+                # Try to use system Chrome if available (Heroku buildpack)
+                try:
+                    # Check for Heroku Chrome environment variables
+                    chrome_bin = os.environ.get('CHROME_BIN') or os.environ.get('CHROME_PATH')
+                    if chrome_bin and os.path.exists(chrome_bin):
+                        browser = await p.chromium.launch(
+                            executable_path=chrome_bin,
+                            headless=True,
+                            args=chrome_args
+                        )
+                        self.results["debug_info"].append(f"Using Heroku Chrome: {chrome_bin}")
+                    else:
+                        browser = await p.chromium.launch(
+                            channel="chrome",
+                            headless=True,
+                            args=chrome_args
+                        )
+                        self.results["debug_info"].append("Using Chrome channel")
+                except Exception as e:
+                    # Fallback to default chromium
+                    self.results["debug_info"].append(f"Chrome launch failed: {str(e)}, falling back to chromium")
+                    browser = await p.chromium.launch(
+                        headless=True,
+                        args=chrome_args
+                    )
                 
                 # Create a more sophisticated context with advanced settings
                 context = await browser.new_context(
@@ -663,13 +712,25 @@ class HybridFinalDetector:
                 
                 # Try to use system Chrome if available (Heroku buildpack)
                 try:
-                    browser = await p.chromium.launch(
-                        channel="chrome",
-                        headless=True,
-                        args=chrome_args
-                    )
-                except Exception:
+                    # Check for Heroku Chrome environment variables
+                    chrome_bin = os.environ.get('CHROME_BIN') or os.environ.get('CHROME_PATH')
+                    if chrome_bin and os.path.exists(chrome_bin):
+                        browser = await p.chromium.launch(
+                            executable_path=chrome_bin,
+                            headless=True,
+                            args=chrome_args
+                        )
+                        self.results["debug_info"].append(f"Using Heroku Chrome: {chrome_bin}")
+                    else:
+                        browser = await p.chromium.launch(
+                            channel="chrome",
+                            headless=True,
+                            args=chrome_args
+                        )
+                        self.results["debug_info"].append("Using Chrome channel")
+                except Exception as e:
                     # Fallback to default chromium
+                    self.results["debug_info"].append(f"Chrome launch failed: {str(e)}, falling back to chromium")
                     browser = await p.chromium.launch(
                         headless=True,
                         args=chrome_args
@@ -729,13 +790,25 @@ class HybridFinalDetector:
                 
                 # Try to use system Chrome if available (Heroku buildpack)
                 try:
-                    browser = await p.chromium.launch(
-                        channel="chrome",
-                        headless=True,
-                        args=chrome_args
-                    )
-                except Exception:
+                    # Check for Heroku Chrome environment variables
+                    chrome_bin = os.environ.get('CHROME_BIN') or os.environ.get('CHROME_PATH')
+                    if chrome_bin and os.path.exists(chrome_bin):
+                        browser = await p.chromium.launch(
+                            executable_path=chrome_bin,
+                            headless=True,
+                            args=chrome_args
+                        )
+                        self.results["debug_info"].append(f"Using Heroku Chrome: {chrome_bin}")
+                    else:
+                        browser = await p.chromium.launch(
+                            channel="chrome",
+                            headless=True,
+                            args=chrome_args
+                        )
+                        self.results["debug_info"].append("Using Chrome channel")
+                except Exception as e:
                     # Fallback to default chromium
+                    self.results["debug_info"].append(f"Chrome launch failed: {str(e)}, falling back to chromium")
                     browser = await p.chromium.launch(
                         headless=True,
                         args=chrome_args
