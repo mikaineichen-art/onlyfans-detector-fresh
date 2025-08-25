@@ -17,6 +17,20 @@ import json
 try:
     from playwright.async_api import async_playwright
     PLAYWRIGHT_AVAILABLE = True
+    
+    # Try to install browsers if not available
+    try:
+        import subprocess
+        import sys
+        result = subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], 
+                              capture_output=True, text=True, timeout=30)
+        if result.returncode == 0:
+            print("✅ Playwright browsers installed successfully")
+        else:
+            print(f"⚠️  Playwright browser installation: {result.stderr}")
+    except Exception as e:
+        print(f"⚠️  Could not install Playwright browsers: {e}")
+        
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
     print("⚠️  Playwright not available - will use HTTP-only mode")
@@ -266,7 +280,32 @@ class HybridFinalDetector:
         """Interactive detection for link.me (based on working solution)"""
         try:
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
+                # Heroku-specific Chrome configuration
+                chrome_args = [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-accelerated-2d-canvas',
+                    '--no-first-run',
+                    '--no-zygote',
+                    '--single-process',
+                    '--disable-gpu'
+                ]
+                
+                # Try to use system Chrome if available (Heroku buildpack)
+                try:
+                    browser = await p.chromium.launch(
+                        channel="chrome",
+                        headless=True,
+                        args=chrome_args
+                    )
+                except Exception:
+                    # Fallback to default chromium
+                    browser = await p.chromium.launch(
+                        headless=True,
+                        args=chrome_args
+                    )
+                
                 context = await browser.new_context()
                 page = await context.new_page()
                 
@@ -610,7 +649,32 @@ class HybridFinalDetector:
         """Interactive detection for xli.ink"""
         try:
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
+                # Heroku-specific Chrome configuration
+                chrome_args = [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-accelerated-2d-canvas',
+                    '--no-first-run',
+                    '--no-zygote',
+                    '--single-process',
+                    '--disable-gpu'
+                ]
+                
+                # Try to use system Chrome if available (Heroku buildpack)
+                try:
+                    browser = await p.chromium.launch(
+                        channel="chrome",
+                        headless=True,
+                        args=chrome_args
+                    )
+                except Exception:
+                    # Fallback to default chromium
+                    browser = await p.chromium.launch(
+                        headless=True,
+                        args=chrome_args
+                    )
+                
                 context = await browser.new_context()
                 page = await context.new_page()
                 
@@ -651,7 +715,32 @@ class HybridFinalDetector:
         """Generic interactive detection for other platforms"""
         try:
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
+                # Heroku-specific Chrome configuration
+                chrome_args = [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-accelerated-2d-canvas',
+                    '--no-first-run',
+                    '--no-zygote',
+                    '--single-process',
+                    '--disable-gpu'
+                ]
+                
+                # Try to use system Chrome if available (Heroku buildpack)
+                try:
+                    browser = await p.chromium.launch(
+                        channel="chrome",
+                        headless=True,
+                        args=chrome_args
+                    )
+                except Exception:
+                    # Fallback to default chromium
+                    browser = await p.chromium.launch(
+                        headless=True,
+                        args=chrome_args
+                    )
+                
                 context = await browser.new_context()
                 page = await context.new_page()
                 
