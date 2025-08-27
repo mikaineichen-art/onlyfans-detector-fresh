@@ -141,3 +141,4 @@ if __name__ == "__main__":
     # Test the failing link
     failing_link = "https://link.me/___kayla.lea___"
     asyncio.run(investigate_link(failing_link))
+

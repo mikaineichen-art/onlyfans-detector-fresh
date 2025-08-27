@@ -145,3 +145,4 @@ if __name__ == "__main__":
     else:
         print("❌ Playwright installation failed")
         print("💡 You may need to use HTTP-only detection mode")
+
