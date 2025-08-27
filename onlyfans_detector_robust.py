@@ -167,7 +167,12 @@ class RobustOnlyFansDetector:
             page = await browser.newPage()
             
             # Set shorter timeout for Phase 2 (15 seconds total to avoid Heroku H12)
-            page.setDefaultTimeout(15000)
+            # Fix for Puppeteer compatibility
+            try:
+                page.setDefaultTimeout(15000)
+            except AttributeError:
+                # Fallback for older Puppeteer versions
+                pass
             
             try:
                 # Load the bio link page
@@ -648,7 +653,7 @@ class RobustOnlyFansDetector:
                     const urls = [];
                     scripts.forEach(script => {
                         const content = script.textContent || script.innerHTML;
-                        const matches = content.match(/https?:\/\/[^\s<>"\']*onlyfans\.com[^\s<>"\']*/gi);
+                        const matches = content.match(/https?:\\/\\/[^\\s<>"\\']*onlyfans\\.com[^\\s<>"\\']*/gi);
                         if (matches) urls.push(...matches);
                     });
                     return urls;
