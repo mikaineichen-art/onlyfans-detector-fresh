@@ -47,8 +47,11 @@ RUN playwright install chromium
 # Copy the rest of the app
 COPY . .
 
+# Test that the app can import properly
+RUN python3 -c "from api_server import app; print('Import successful')"
+
 # Expose port (Railway will provide actual PORT)
 EXPOSE 8080
 
-# Start the server with Railway's PORT environment variable
-CMD gunicorn api_server:app --bind 0.0.0.0:${PORT:-8080}
+# Start the server with Railway's PORT environment variable and debugging
+CMD python3 -c "import os; print(f'Starting on port: {os.environ.get(\"PORT\", \"8080\")}')" && gunicorn api_server:app --bind 0.0.0.0:${PORT:-8080} --log-level debug
