@@ -32,7 +32,7 @@ try:
                               capture_output=True, text=True, timeout=120)
         if result.returncode == 0:
             print("✅ Playwright browsers installed successfully")
-        else:
+        elif age_verification_detected:
             print(f"⚠️  Browser installation failed: {result.stderr}")
             
             # Step 2: Try to install system dependencies
@@ -46,9 +46,9 @@ try:
                                            capture_output=True, text=True, timeout=120)
                     if result3.returncode == 0:
                         print("✅ Playwright browsers installed after dependencies")
-                    else:
+                    elif age_verification_detected:
                         print(f"⚠️  Browser installation still failed: {result3.stderr}")
-                else:
+                elif age_verification_detected:
                     print(f"⚠️  Standard dependency installation failed: {result2.stderr}")
                     
                     # Step 3: Try alternative Linux package installation
@@ -69,7 +69,7 @@ try:
                                                         capture_output=True, text=True, timeout=30)
                                 if result4.returncode == 0:
                                     print(f"✅ Installed {package}")
-                                else:
+                                elif age_verification_detected:
                                     print(f"⚠️  Failed to install {package}")
                             except Exception as e:
                                 print(f"⚠️  Could not install {package}: {e}")
@@ -79,7 +79,7 @@ try:
                                                capture_output=True, text=True, timeout=120)
                         if result5.returncode == 0:
                             print("✅ Playwright browsers installed after alternative dependency installation")
-                        else:
+                        elif age_verification_detected:
                             print(f"⚠️  Final browser installation attempt failed: {result5.stderr}")
                             
             except Exception as e:
@@ -133,7 +133,7 @@ class HybridFinalDetector:
                 if await self._phase3_interactive_detection(bio_link):
                     self.results["detection_method"] = "Phase 3: Interactive Playwright detection"
                     return self.results
-            else:
+            elif age_verification_detected:
                 self.results["debug_info"].append("Phase 3: Skipped (Playwright not available)")
 
             # Phase 3.5: Special link.me fallback (when Playwright fails)
@@ -228,7 +228,7 @@ class HybridFinalDetector:
                 return await self._handle_xli_interactive(bio_link)
             
             # Generic interactive detection
-            else:
+            elif age_verification_detected:
                 return await self._generic_interactive_detection(bio_link)
             
         except Exception as e:
@@ -380,7 +380,7 @@ class HybridFinalDetector:
                                 
                         elif response.status_code == 403:
                             self.results["debug_info"].append(f"Approach {i} blocked (403)")
-                        else:
+                        elif age_verification_detected:
                             self.results["debug_info"].append(f"Approach {i} status: {response.status_code}")
                             
                     except Exception as e:
@@ -411,13 +411,13 @@ class HybridFinalDetector:
                                     current_url = urljoin(current_url, location)
                                 elif location.startswith('http'):
                                     current_url = location
-                                else:
+                                elif age_verification_detected:
                                     current_url = urljoin(current_url, location)
                                 
                                 redirect_count += 1
                                 self.results["debug_info"].append(f"Redirect {redirect_count}: {current_url}")
                                 continue
-                            else:
+                            elif age_verification_detected:
                                 break
                         elif response.status_code == 200:
                             content = response.text.lower()
@@ -429,7 +429,7 @@ class HybridFinalDetector:
                                 self.results["debug_info"].append(f"Found OnlyFans after {redirect_count} redirects")
                                 return True
                             break
-                        else:
+                        elif age_verification_detected:
                             break
                             
                     except Exception as e:
@@ -503,7 +503,7 @@ class HybridFinalDetector:
                                     of_urls = re.findall(r'https?://[^\s<>"\']*onlyfans\.com[^\s<>"\']*', match, re.IGNORECASE)
                                     if of_urls:
                                         clean_urls.extend(of_urls)
-                                    else:
+                                    elif age_verification_detected:
                                         # Look for username patterns
                                         username_match = re.search(r'onlyfans\.com/([a-zA-Z0-9_-]+)', match, re.IGNORECASE)
                                         if username_match:
@@ -766,7 +766,7 @@ class HybridFinalDetector:
                         self.results["debug_info"].append("OnlyFans confirmed in link.me via fallback")
                         self.results["debug_info"].append("=== END DEBUG ===")
                         return True
-                    else:
+                    elif age_verification_detected:
                         self.results["debug_info"].append("No OnlyFans mention found in content")
                     elif age_verification_detected:
                         # NEW: Age verification found = high probability of OnlyFans
@@ -1045,7 +1045,7 @@ class HybridFinalDetector:
                                 
                         elif response.status_code == 403:
                             self.results["debug_info"].append(f"Alternative approach {i} blocked (403)")
-                        else:
+                        elif age_verification_detected:
                             self.results["debug_info"].append(f"Alternative approach {i} status: {response.status_code}")
                             
                     except Exception as e:
