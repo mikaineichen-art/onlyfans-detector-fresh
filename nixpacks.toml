@@ -1,9 +1,10 @@
 [phases.setup]
-nixPkgs = ["python311", "chromium"]
+nixPkgs = ["python311", "chromium", "curl"]
 
 [phases.install]
 cmds = [
-    "python -m ensurepip --upgrade",
+    "curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py",
+    "python get-pip.py --force-reinstall",
     "python -m pip install -r requirements.txt",
     "python -m playwright install chromium",
     "python -m playwright install-deps"
