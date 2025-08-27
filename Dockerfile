@@ -20,6 +20,5 @@ ENV PYTHONUNBUFFERED=1 \
 ENV PORT=8080
 EXPOSE 8080
 
-# Start the server
-CMD ["gunicorn", "api_server:app", "--bind", "0.0.0.0:${PORT}"]
-
+# Start the server with proper PORT handling
+CMD gunicorn api_server:app --bind 0.0.0.0:${PORT:-8080}
