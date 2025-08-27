@@ -1,0 +1,15 @@
+[phases.setup]
+nixPkgs = ["python311", "chromium", "gcc", "glib", "nss", "nspr", "dbus", "atk", "atk-bridge", "cups", "drm", "xcb", "xkbcommon", "atspi", "x11", "xcomposite", "xdamage", "xext", "xfixes", "xrandr", "gbm", "pango", "cairo", "asound"]
+
+[phases.install]
+cmds = [
+    "pip install -r requirements.txt",
+    "playwright install chromium",
+    "playwright install-deps"
+]
+
+[phases.build]
+cmds = ["echo 'Build phase completed'"]
+
+[start]
+cmd = "./start.sh"
