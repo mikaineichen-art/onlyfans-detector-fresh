@@ -659,7 +659,7 @@ class HybridFinalDetector:
     async def _handle_linkme_fallback(self, bio_link: str) -> bool:
         """Special fallback detection for link.me when Playwright fails"""
         try:
-            self.results["debug_info"].append("Using specialized link.me fallback detection...")
+            self.results["debug_info"].append(f"=== DEBUGGING {bio_link} ===")
             
             # Strategy 1: Try with enhanced HTTP detection specifically for link.me
             async with httpx.AsyncClient(timeout=25.0) as client:
@@ -682,11 +682,48 @@ class HybridFinalDetector:
                 
                 response = await client.get(bio_link, headers=headers)
                 
+                # Debug logging for response details
+                self.results["debug_info"].append(f"Response status: {response.status_code}")
+                self.results["debug_info"].append(f"Response length: {len(response.text)}")
+                self.results["debug_info"].append(f"Content-Type: {response.headers.get('content-type', 'unknown')}")
+                
                 if response.status_code == 200:
                     content = response.text
                     
+                    # Debug: Check for OnlyFans mentions
+                    has_onlyfans_mention = 'onlyfans' in content.lower()
+                    self.results["debug_info"].append(f"Contains 'onlyfans' (case-insensitive): {has_onlyfans_mention}")
+                    
+                    # Debug: Show HTML preview
+                    html_preview = content[:1000] if len(content) > 1000 else content
+                    self.results["debug_info"].append(f"Raw HTML preview (first 1000 chars):\n{html_preview}")
+                    
+                    # Enhanced detection patterns
+                    detection_patterns = [
+                        # Pattern 1: Standard OnlyFans URLs
+                        r'https?://[^\s<>"\']*onlyfans\.com[^\s<>"\']*',
+                        # Pattern 2: OnlyFans with username
+                        r'onlyfans\.com/[a-zA-Z0-9_-]+',
+                        # Pattern 3: Data attributes
+                        r'data-url=["\'][^"\']*onlyfans[^"\']*["\']',
+                        r'data-link=["\'][^"\']*onlyfans[^"\']*["\']',
+                        # Pattern 4: JSON embedded data
+                        r'"[^"]*onlyfans[^"]*"',
+                        # Pattern 5: Case variations
+                        r'[Oo]nly[Ff]ans',
+                        r'[Oo]nly[Ff]an',
+                        # Pattern 6: Encoded URLs
+                        r'%6F%6E%6C%79%66%61%6E%73',  # "onlyfans" in hex
+                    ]
+                    
+                    # Test each pattern
+                    for i, pattern in enumerate(detection_patterns, 1):
+                        matches = re.findall(pattern, content, re.IGNORECASE)
+                        if matches:
+                            self.results["debug_info"].append(f"Pattern {i} found {len(matches)} matches: {matches[:3]}...")
+                    
                     # Look for OnlyFans mentions in link.me specific patterns
-                    if 'onlyfans' in content.lower():
+                    if has_onlyfans_mention:
                         self.results["debug_info"].append("OnlyFans found in link.me content via fallback")
                         
                         # Extract URLs if possible
@@ -695,15 +732,20 @@ class HybridFinalDetector:
                             self.results["has_onlyfans"] = True
                             self.results["onlyfans_urls"] = list(set(of_urls))
                             self.results["debug_info"].append("Found OnlyFans URLs in link.me fallback")
+                            self.results["debug_info"].append("=== END DEBUG ===")
                             return True
                         
                         # Just confirm OnlyFans exists
                         self.results["has_onlyfans"] = True
                         self.results["onlyfans_urls"] = ["https://onlyfans.com/detected"]
                         self.results["debug_info"].append("OnlyFans confirmed in link.me via fallback")
+                        self.results["debug_info"].append("=== END DEBUG ===")
                         return True
+                    else:
+                        self.results["debug_info"].append("No OnlyFans mention found in content")
                 
                 # Strategy 2: Try with mobile user agent
+                self.results["debug_info"].append("Trying mobile user agent approach...")
                 mobile_headers = {
                     'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1.2 Mobile/15E148 Safari/604.1',
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -715,15 +757,40 @@ class HybridFinalDetector:
                 
                 if response.status_code == 200:
                     content = response.text
+                    mobile_has_onlyfans = 'onlyfans' in content.lower()
+                    self.results["debug_info"].append(f"Mobile approach - Contains 'onlyfans': {mobile_has_onlyfans}")
                     
-                    if 'onlyfans' in content.lower():
+                    if mobile_has_onlyfans:
                         self.results["debug_info"].append("OnlyFans found in link.me via mobile fallback")
                         self.results["has_onlyfans"] = True
                         self.results["onlyfans_urls"] = ["https://onlyfans.com/detected"]
+                        self.results["debug_info"].append("=== END DEBUG ===")
                         return True
+                
+                # Strategy 3: Try with different referrers
+                self.results["debug_info"].append("Trying different referrer approach...")
+                referrer_headers = headers.copy()
+                referrer_headers['Referer'] = 'https://www.bing.com/'
+                
+                response = await client.get(bio_link, headers=referrer_headers)
+                
+                if response.status_code == 200:
+                    content = response.text
+                    referrer_has_onlyfans = 'onlyfans' in content.lower()
+                    self.results["debug_info"].append(f"Referrer approach - Contains 'onlyfans': {referrer_has_onlyfans}")
+                    
+                    if referrer_has_onlyfans:
+                        self.results["debug_info"].append("OnlyFans found in link.me via referrer fallback")
+                        self.results["has_onlyfans"] = True
+                        self.results["onlyfans_urls"] = ["https://onlyfans.com/detected"]
+                        self.results["debug_info"].append("=== END DEBUG ===")
+                        return True
+                
+                self.results["debug_info"].append("=== END DEBUG ===")
                         
         except Exception as e:
             self.results["errors"].append(f"Link.me fallback detection failed: {str(e)}")
+            self.results["debug_info"].append("=== END DEBUG ===")
             
         return False
 
