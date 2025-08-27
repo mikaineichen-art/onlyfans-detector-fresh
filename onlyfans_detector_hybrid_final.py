@@ -136,6 +136,13 @@ class HybridFinalDetector:
             else:
                 self.results["debug_info"].append("Phase 3: Skipped (Playwright not available)")
 
+            # Phase 3.5: Special link.me fallback (when Playwright fails)
+            if "link.me" in bio_link.lower():
+                self.results["debug_info"].append("Phase 3.5: Special link.me fallback detection")
+                if await self._handle_linkme_fallback(bio_link):
+                    self.results["detection_method"] = "Phase 3.5: Special link.me fallback"
+                    return self.results
+
             # Phase 4: Final fallback extraction
             self.results["debug_info"].append("Phase 4: Final fallback extraction")
             if await self._final_fallback_extraction(bio_link):
@@ -646,6 +653,77 @@ class HybridFinalDetector:
                     
         except Exception as e:
             self.results["errors"].append(f"Link.me interactive detection failed: {str(e)}")
+            
+        return False
+
+    async def _handle_linkme_fallback(self, bio_link: str) -> bool:
+        """Special fallback detection for link.me when Playwright fails"""
+        try:
+            self.results["debug_info"].append("Using specialized link.me fallback detection...")
+            
+            # Strategy 1: Try with enhanced HTTP detection specifically for link.me
+            async with httpx.AsyncClient(timeout=25.0) as client:
+                # Use link.me specific headers that work
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'DNT': '1',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1',
+                    'Sec-Fetch-Dest': 'document',
+                    'Sec-Fetch-Mode': 'navigate',
+                    'Sec-Fetch-Site': 'none',
+                    'Sec-Fetch-User': '?1',
+                    'Cache-Control': 'max-age=0',
+                    'Referer': 'https://www.google.com/'
+                }
+                
+                response = await client.get(bio_link, headers=headers)
+                
+                if response.status_code == 200:
+                    content = response.text
+                    
+                    # Look for OnlyFans mentions in link.me specific patterns
+                    if 'onlyfans' in content.lower():
+                        self.results["debug_info"].append("OnlyFans found in link.me content via fallback")
+                        
+                        # Extract URLs if possible
+                        of_urls = re.findall(r'https?://[^\s<>"\']*onlyfans\.com[^\s<>"\']*', content, re.IGNORECASE)
+                        if of_urls:
+                            self.results["has_onlyfans"] = True
+                            self.results["onlyfans_urls"] = list(set(of_urls))
+                            self.results["debug_info"].append("Found OnlyFans URLs in link.me fallback")
+                            return True
+                        
+                        # Just confirm OnlyFans exists
+                        self.results["has_onlyfans"] = True
+                        self.results["onlyfans_urls"] = ["https://onlyfans.com/detected"]
+                        self.results["debug_info"].append("OnlyFans confirmed in link.me via fallback")
+                        return True
+                
+                # Strategy 2: Try with mobile user agent
+                mobile_headers = {
+                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1.2 Mobile/15E148 Safari/604.1',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+                
+                response = await client.get(bio_link, headers=mobile_headers)
+                
+                if response.status_code == 200:
+                    content = response.text
+                    
+                    if 'onlyfans' in content.lower():
+                        self.results["debug_info"].append("OnlyFans found in link.me via mobile fallback")
+                        self.results["has_onlyfans"] = True
+                        self.results["onlyfans_urls"] = ["https://onlyfans.com/detected"]
+                        return True
+                        
+        except Exception as e:
+            self.results["errors"].append(f"Link.me fallback detection failed: {str(e)}")
             
         return False
 
