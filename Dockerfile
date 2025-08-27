@@ -22,3 +22,4 @@ EXPOSE 8080
 
 # Start the server
 CMD ["gunicorn", "api_server:app", "--bind", "0.0.0.0:${PORT}"]
+
