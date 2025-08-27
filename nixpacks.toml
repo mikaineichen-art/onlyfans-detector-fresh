@@ -1,7 +1,5 @@
 [phases.setup]
 nixPkgs = ["glib", "nss", "nspr", "dbus", "atk", "cups", "pango", "cairo"]
-
-[phases.install]
 cmds = ["pip install playwright", "playwright install chromium"]
 
 [start]
