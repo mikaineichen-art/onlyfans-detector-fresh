@@ -1,3 +1,9 @@
 [deploy]
 healthcheckPath = "/health"
 healthcheckTimeout = 300
+
+[build]
+builder = "nixpacks"
+
+[deploy.startCommand]
+command = "./start.sh"

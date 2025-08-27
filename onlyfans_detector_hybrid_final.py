@@ -18,6 +18,76 @@ import json
 try:
     from playwright.async_api import async_playwright
     PLAYWRIGHT_AVAILABLE = True
+    
+    # Railway-specific Playwright browser installation
+    try:
+        import subprocess
+        import sys
+        import platform
+        
+        print("🚀 Setting up Playwright for Railway...")
+        
+        # Step 1: Install browsers
+        result = subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], 
+                              capture_output=True, text=True, timeout=120)
+        if result.returncode == 0:
+            print("✅ Playwright browsers installed successfully")
+        else:
+            print(f"⚠️  Browser installation failed: {result.stderr}")
+            
+            # Step 2: Try to install system dependencies
+            try:
+                result2 = subprocess.run([sys.executable, "-m", "playwright", "install-deps"], 
+                                       capture_output=True, text=True, timeout=120)
+                if result2.returncode == 0:
+                    print("✅ System dependencies installed successfully")
+                    # Try browser installation again
+                    result3 = subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], 
+                                           capture_output=True, text=True, timeout=120)
+                    if result3.returncode == 0:
+                        print("✅ Playwright browsers installed after dependencies")
+                    else:
+                        print(f"⚠️  Browser installation still failed: {result3.stderr}")
+                else:
+                    print(f"⚠️  Standard dependency installation failed: {result2.stderr}")
+                    
+                    # Step 3: Try alternative Linux package installation
+                    if platform.system() == "Linux":
+                        print("🐧 Linux detected, trying alternative package installation...")
+                        apt_packages = [
+                            "libglib2.0-0", "libnss3", "libnspr4", "libdbus-1-3",
+                            "libatk1.0-0", "libatk-bridge2.0-0", "libcups2",
+                            "libdrm2", "libxcb1", "libxkbcommon0", "libatspi2.0-0",
+                            "libx11-6", "libxcomposite1", "libxdamage1", "libxext6",
+                            "libxfixes3", "libxrandr2", "libgbm1", "libpango-1.0-0",
+                            "libcairo2", "libasound2"
+                        ]
+                        
+                        for package in apt_packages:
+                            try:
+                                result4 = subprocess.run(["apt-get", "install", "-y", package], 
+                                                        capture_output=True, text=True, timeout=30)
+                                if result4.returncode == 0:
+                                    print(f"✅ Installed {package}")
+                                else:
+                                    print(f"⚠️  Failed to install {package}")
+                            except Exception as e:
+                                print(f"⚠️  Could not install {package}: {e}")
+                        
+                        # Try browser installation one more time
+                        result5 = subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], 
+                                               capture_output=True, text=True, timeout=120)
+                        if result5.returncode == 0:
+                            print("✅ Playwright browsers installed after alternative dependency installation")
+                        else:
+                            print(f"⚠️  Final browser installation attempt failed: {result5.stderr}")
+                            
+            except Exception as e:
+                print(f"⚠️  Could not install Playwright dependencies: {e}")
+                
+    except Exception as e:
+        print(f"⚠️  Could not install Playwright browsers: {e}")
+        
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
     print("⚠️  Playwright not available - will use HTTP-only mode")
@@ -213,6 +283,38 @@ class HybridFinalDetector:
             self.results["errors"].append(f"Final fallback extraction failed: {str(e)}")
             
         return False
+
+    async def _launch_browser_safely(self, p):
+        """Safely launch browser with fallback options"""
+        try:
+            # Try Railway-optimized launch first
+            browser = await p.chromium.launch(
+                headless=True,
+                args=[
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-accelerated-2d-canvas',
+                    '--no-first-run',
+                    '--no-zygote',
+                    '--disable-gpu'
+                ]
+            )
+            self.results["debug_info"].append("Browser launched with Railway-optimized settings")
+            return browser
+        except Exception as e:
+            self.results["debug_info"].append(f"Railway-optimized launch failed: {str(e)[:50]}...")
+            try:
+                # Fallback to basic launch
+                browser = await p.chromium.launch(
+                    headless=True,
+                    args=['--no-sandbox', '--disable-dev-shm-usage']
+                )
+                self.results["debug_info"].append("Browser launched with fallback settings")
+                return browser
+            except Exception as e2:
+                self.results["debug_info"].append(f"Fallback launch also failed: {str(e2)[:50]}...")
+                raise e2
 
     async def _desperate_mode_extraction(self, bio_link: str) -> bool:
         """Desperate mode: Try anything to find OnlyFans information"""
@@ -416,19 +518,8 @@ class HybridFinalDetector:
         """Interactive detection for link.me (based on working solution)"""
         try:
             async with async_playwright() as p:
-                # Railway-optimized browser launch
-                browser = await p.chromium.launch(
-                    headless=True,
-                    args=[
-                        '--no-sandbox',
-                        '--disable-setuid-sandbox',
-                        '--disable-dev-shm-usage',
-                        '--disable-accelerated-2d-canvas',
-                        '--no-first-run',
-                        '--no-zygote',
-                        '--disable-gpu'
-                    ]
-                )
+                # Use safe browser launch
+                browser = await self._launch_browser_safely(p)
                 
                 context = await browser.new_context()
                 page = await context.new_page()
@@ -562,19 +653,8 @@ class HybridFinalDetector:
         """Interactive detection for beacons.ai with aggressive human-like behavior"""
         try:
             async with async_playwright() as p:
-                # Railway-optimized browser launch
-                browser = await p.chromium.launch(
-                    headless=True,
-                    args=[
-                        '--no-sandbox',
-                        '--disable-setuid-sandbox',
-                        '--disable-dev-shm-usage',
-                        '--disable-accelerated-2d-canvas',
-                        '--no-first-run',
-                        '--no-zygote',
-                        '--disable-gpu'
-                    ]
-                )
+                # Use safe browser launch
+                browser = await self._launch_browser_safely(p)
                 
                 # Create a more sophisticated context with advanced settings
                 context = await browser.new_context(
@@ -785,19 +865,8 @@ class HybridFinalDetector:
         """Interactive detection for xli.ink"""
         try:
             async with async_playwright() as p:
-                # Railway-optimized browser launch
-                browser = await p.chromium.launch(
-                    headless=True,
-                    args=[
-                        '--no-sandbox',
-                        '--disable-setuid-sandbox',
-                        '--disable-dev-shm-usage',
-                        '--disable-accelerated-2d-canvas',
-                        '--no-first-run',
-                        '--no-zygote',
-                        '--disable-gpu'
-                    ]
-                )
+                # Use safe browser launch
+                browser = await self._launch_browser_safely(p)
                 
                 context = await browser.new_context()
                 page = await context.new_page()
@@ -839,19 +908,8 @@ class HybridFinalDetector:
         """Generic interactive detection for other platforms"""
         try:
             async with async_playwright() as p:
-                # Railway-optimized browser launch
-                browser = await p.chromium.launch(
-                    headless=True,
-                    args=[
-                        '--no-sandbox',
-                        '--disable-setuid-sandbox',
-                        '--disable-dev-shm-usage',
-                        '--disable-accelerated-2d-canvas',
-                        '--no-first-run',
-                        '--no-zygote',
-                        '--disable-gpu'
-                    ]
-                )
+                # Use safe browser launch
+                browser = await self._launch_browser_safely(p)
                 
                 context = await browser.new_context()
                 page = await context.new_page()
