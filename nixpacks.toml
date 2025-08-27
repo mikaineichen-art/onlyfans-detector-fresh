@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["glib", "nss", "nspr", "dbus", "atk", "cups", "libdrm", "xcb", "xkbcommon", "pango", "cairo", "alsa-lib"]
+nixPkgs = ["glib", "nss", "nspr", "dbus", "atk", "cups", "pango", "cairo"]
 
 [phases.install]
 cmds = ["python -m playwright install chromium"]
