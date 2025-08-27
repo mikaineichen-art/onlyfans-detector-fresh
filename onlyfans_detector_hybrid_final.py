@@ -23,12 +23,31 @@ try:
     try:
         import subprocess
         import sys
+        # Try to install chromium specifically for Railway
         result = subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], 
-                              capture_output=True, text=True, timeout=30)
+                              capture_output=True, text=True, timeout=60)
         if result.returncode == 0:
             print("✅ Playwright browsers installed successfully")
         else:
             print(f"⚠️  Playwright browser installation: {result.stderr}")
+            # Try to install dependencies if browsers fail
+            try:
+                result2 = subprocess.run([sys.executable, "-m", "playwright", "install-deps"], 
+                                       capture_output=True, text=True, timeout=60)
+                if result2.returncode == 0:
+                    print("✅ Playwright dependencies installed successfully")
+                    # Try browser installation again
+                    result3 = subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], 
+                                           capture_output=True, text=True, timeout=60)
+                    if result3.returncode == 0:
+                        print("✅ Playwright browsers installed after dependencies")
+                    else:
+                        print(f"⚠️  Browser installation still failed: {result3.stderr}")
+                else:
+                    print(f"⚠️  Dependency installation failed: {result2.stderr}")
+            except Exception as e:
+                print(f"⚠️  Could not install Playwright dependencies: {e}")
+                
     except Exception as e:
         print(f"⚠️  Could not install Playwright browsers: {e}")
         
@@ -293,9 +312,9 @@ class HybridFinalDetector:
                     '--disable-gpu'
                 ]
                 
-                # Try to use system Chrome if available (Heroku buildpack)
+                # Railway-optimized browser launch
                 try:
-                    # Check for Heroku Chrome environment variables
+                    # Try to use system Chrome if available
                     chrome_bin = os.environ.get('CHROME_BIN') or os.environ.get('CHROME_PATH')
                     if chrome_bin and os.path.exists(chrome_bin):
                         browser = await p.chromium.launch(
@@ -303,20 +322,24 @@ class HybridFinalDetector:
                             headless=True,
                             args=chrome_args
                         )
-                        self.results["debug_info"].append(f"Using Heroku Chrome: {chrome_bin}")
+                        self.results["debug_info"].append(f"Using system Chrome: {chrome_bin}")
                     else:
+                        # Use installed chromium with Railway-optimized args
                         browser = await p.chromium.launch(
-                            channel="chrome",
                             headless=True,
-                            args=chrome_args
+                            args=chrome_args + [
+                                '--disable-web-security',
+                                '--disable-features=VizDisplayCompositor',
+                                '--disable-ipc-flooding-protection'
+                            ]
                         )
-                        self.results["debug_info"].append("Using Chrome channel")
+                        self.results["debug_info"].append("Using installed Chromium")
                 except Exception as e:
-                    # Fallback to default chromium
-                    self.results["debug_info"].append(f"Chrome launch failed: {str(e)}, falling back to chromium")
+                    # Final fallback to basic chromium
+                    self.results["debug_info"].append(f"Chrome launch failed: {str(e)}, falling back to basic chromium")
                     browser = await p.chromium.launch(
                         headless=True,
-                        args=chrome_args
+                        args=['--no-sandbox', '--disable-dev-shm-usage']
                     )
                 
                 context = await browser.new_context()
@@ -463,9 +486,9 @@ class HybridFinalDetector:
                     '--disable-gpu'
                 ]
                 
-                # Try to use system Chrome if available (Heroku buildpack)
+                # Railway-optimized browser launch
                 try:
-                    # Check for Heroku Chrome environment variables
+                    # Try to use system Chrome if available
                     chrome_bin = os.environ.get('CHROME_BIN') or os.environ.get('CHROME_PATH')
                     if chrome_bin and os.path.exists(chrome_bin):
                         browser = await p.chromium.launch(
@@ -473,20 +496,24 @@ class HybridFinalDetector:
                             headless=True,
                             args=chrome_args
                         )
-                        self.results["debug_info"].append(f"Using Heroku Chrome: {chrome_bin}")
+                        self.results["debug_info"].append(f"Using system Chrome: {chrome_bin}")
                     else:
+                        # Use installed chromium with Railway-optimized args
                         browser = await p.chromium.launch(
-                            channel="chrome",
                             headless=True,
-                            args=chrome_args
+                            args=chrome_args + [
+                                '--disable-web-security',
+                                '--disable-features=VizDisplayCompositor',
+                                '--disable-ipc-flooding-protection'
+                            ]
                         )
-                        self.results["debug_info"].append("Using Chrome channel")
+                        self.results["debug_info"].append("Using installed Chromium")
                 except Exception as e:
-                    # Fallback to default chromium
-                    self.results["debug_info"].append(f"Chrome launch failed: {str(e)}, falling back to chromium")
+                    # Final fallback to basic chromium
+                    self.results["debug_info"].append(f"Chrome launch failed: {str(e)}, falling back to basic chromium")
                     browser = await p.chromium.launch(
                         headless=True,
-                        args=chrome_args
+                        args=['--no-sandbox', '--disable-dev-shm-usage']
                     )
                 
                 # Create a more sophisticated context with advanced settings
@@ -710,9 +737,9 @@ class HybridFinalDetector:
                     '--disable-gpu'
                 ]
                 
-                # Try to use system Chrome if available (Heroku buildpack)
+                # Railway-optimized browser launch
                 try:
-                    # Check for Heroku Chrome environment variables
+                    # Try to use system Chrome if available
                     chrome_bin = os.environ.get('CHROME_BIN') or os.environ.get('CHROME_PATH')
                     if chrome_bin and os.path.exists(chrome_bin):
                         browser = await p.chromium.launch(
@@ -720,20 +747,24 @@ class HybridFinalDetector:
                             headless=True,
                             args=chrome_args
                         )
-                        self.results["debug_info"].append(f"Using Heroku Chrome: {chrome_bin}")
+                        self.results["debug_info"].append(f"Using system Chrome: {chrome_bin}")
                     else:
+                        # Use installed chromium with Railway-optimized args
                         browser = await p.chromium.launch(
-                            channel="chrome",
                             headless=True,
-                            args=chrome_args
+                            args=chrome_args + [
+                                '--disable-web-security',
+                                '--disable-features=VizDisplayCompositor',
+                                '--disable-ipc-flooding-protection'
+                            ]
                         )
-                        self.results["debug_info"].append("Using Chrome channel")
+                        self.results["debug_info"].append("Using installed Chromium")
                 except Exception as e:
-                    # Fallback to default chromium
-                    self.results["debug_info"].append(f"Chrome launch failed: {str(e)}, falling back to chromium")
+                    # Final fallback to basic chromium
+                    self.results["debug_info"].append(f"Chrome launch failed: {str(e)}, falling back to basic chromium")
                     browser = await p.chromium.launch(
                         headless=True,
-                        args=chrome_args
+                        args=['--no-sandbox', '--disable-dev-shm-usage']
                     )
                 
                 context = await browser.new_context()
@@ -788,9 +819,9 @@ class HybridFinalDetector:
                     '--disable-gpu'
                 ]
                 
-                # Try to use system Chrome if available (Heroku buildpack)
+                # Railway-optimized browser launch
                 try:
-                    # Check for Heroku Chrome environment variables
+                    # Try to use system Chrome if available
                     chrome_bin = os.environ.get('CHROME_BIN') or os.environ.get('CHROME_PATH')
                     if chrome_bin and os.path.exists(chrome_bin):
                         browser = await p.chromium.launch(
@@ -798,20 +829,24 @@ class HybridFinalDetector:
                             headless=True,
                             args=chrome_args
                         )
-                        self.results["debug_info"].append(f"Using Heroku Chrome: {chrome_bin}")
+                        self.results["debug_info"].append(f"Using system Chrome: {chrome_bin}")
                     else:
+                        # Use installed chromium with Railway-optimized args
                         browser = await p.chromium.launch(
-                            channel="chrome",
                             headless=True,
-                            args=chrome_args
+                            args=chrome_args + [
+                                '--disable-web-security',
+                                '--disable-features=VizDisplayCompositor',
+                                '--disable-ipc-flooding-protection'
+                            ]
                         )
-                        self.results["debug_info"].append("Using Chrome channel")
+                        self.results["debug_info"].append("Using installed Chromium")
                 except Exception as e:
-                    # Fallback to default chromium
-                    self.results["debug_info"].append(f"Chrome launch failed: {str(e)}, falling back to chromium")
+                    # Final fallback to basic chromium
+                    self.results["debug_info"].append(f"Chrome launch failed: {str(e)}, falling back to basic chromium")
                     browser = await p.chromium.launch(
                         headless=True,
-                        args=chrome_args
+                        args=['--no-sandbox', '--disable-dev-shm-usage']
                     )
                 
                 context = await browser.new_context()
