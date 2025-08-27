@@ -39,8 +39,8 @@ RUN playwright install chromium
 # Copy application code
 COPY . .
 
-# Expose port
+# Expose port (will be overridden by Railway)
 EXPOSE 8080
 
-# Start command
-CMD ["gunicorn", "api_server:app", "--bind", "0.0.0.0:8080"]
+# Start command with proper port handling
+CMD gunicorn api_server:app --bind 0.0.0.0:${PORT:-8080} --timeout 120 --workers 1
