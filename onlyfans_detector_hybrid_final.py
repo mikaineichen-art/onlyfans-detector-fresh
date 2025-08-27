@@ -1,1137 +1,484 @@
-#!/usr/bin/env python3
-"""
-Final Hybrid OnlyFans Detector
-Combines fast HTTP detection with interactive Playwright for complex cases
-"""
-
-import re
 import asyncio
 import httpx
-import os
+import re
+import logging
+from typing import List, Dict, Optional, Tuple
 from urllib.parse import urljoin, urlparse
-from typing import Dict, List, Optional, Tuple
 import time
-import sys
-import json
+import random
 
-# Try to import Playwright, but don't fail if not available
-try:
-    from playwright.async_api import async_playwright
-    PLAYWRIGHT_AVAILABLE = True
-    
-    # Railway-specific Playwright installation
-    try:
-        import subprocess
-        import sys
-        import platform
-        
-        print("🚀 Setting up Playwright for Railway...")
-        
-        # Step 1: Install browsers
-        result = subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], 
-                              capture_output=True, text=True, timeout=120)
-        if result.returncode == 0:
-            print("✅ Playwright browsers installed successfully")
-        else:
-            print(f"⚠️  Browser installation failed: {result.stderr}")
-            
-            # Step 2: Try to install system dependencies
-            try:
-                result2 = subprocess.run([sys.executable, "-m", "playwright", "install-deps"], 
-                                       capture_output=True, text=True, timeout=120)
-                if result2.returncode == 0:
-                    print("✅ System dependencies installed successfully")
-                    # Try browser installation again
-                    result3 = subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], 
-                                           capture_output=True, text=True, timeout=120)
-                    if result3.returncode == 0:
-                        print("✅ Playwright browsers installed after dependencies")
-                    else:
-                        print(f"⚠️  Browser installation still failed: {result3.stderr}")
-                else:
-                    print(f"⚠️  Standard dependency installation failed: {result2.stderr}")
-                    
-                    # Step 3: Try alternative Linux package installation
-                    if platform.system() == "Linux":
-                        print("🐧 Linux detected, trying alternative package installation...")
-                        apt_packages = [
-                            "libglib2.0-0", "libnss3", "libnspr4", "libdbus-1-3",
-                            "libatk1.0-0", "libatk-bridge2.0-0", "libcups2",
-                            "libdrm2", "libxcb1", "libxkbcommon0", "libatspi2.0-0",
-                            "libx11-6", "libxcomposite1", "libxdamage1", "libxext6",
-                            "libxfixes3", "libxrandr2", "libgbm1", "libpango-1.0-0",
-                            "libcairo2", "libasound2"
-                        ]
-                        
-                        for package in apt_packages:
-                            try:
-                                result4 = subprocess.run(["apt-get", "install", "-y", package], 
-                                                       capture_output=True, text=True, timeout=30)
-                                if result4.returncode == 0:
-                                    print(f"✅ Installed {package}")
-                                else:
-                                    print(f"⚠️  Failed to install {package}")
-                            except Exception as e:
-                                print(f"⚠️  Could not install {package}: {e}")
-                        
-                        # Try browser installation one more time
-                        result5 = subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], 
-                                               capture_output=True, text=True, timeout=120)
-                        if result5.returncode == 0:
-                            print("✅ Playwright browsers installed after alternative dependency installation")
-                        else:
-                            print(f"⚠️  Final browser installation attempt failed: {result5.stderr}")
-                            
-            except Exception as e:
-                print(f"⚠️  Could not install Playwright dependencies: {e}")
-                
-    except Exception as e:
-        print(f"⚠️  Could not install Playwright browsers: {e}")
-        
-except ImportError:
-    PLAYWRIGHT_AVAILABLE = False
-    print("⚠️  Playwright not available - will use HTTP-only mode")
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-class HybridFinalDetector:
-    """Final hybrid detector with HTTP + interactive detection"""
-    
+class OnlyFansDetector:
     def __init__(self):
-        self.results = {
-            "has_onlyfans": False,
-            "onlyfans_urls": [],
-            "detection_method": None,
-            "debug_info": [],
-            "errors": []
-        }
+        self.onlyfans_patterns = [
+            r'https?://(?:www\.)?onlyfans\.com/[a-zA-Z0-9_.-]+',
+            r'https?://(?:www\.)?onlyfans\.com/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+',
+            r'onlyfans\.com/[a-zA-Z0-9_.-]+',
+            r'onlyfans\.com/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+'
+        ]
         
-    async def detect_onlyfans(self, bio_link: str) -> Dict:
-        """Main detection method with hybrid approach"""
-        self.results = {
-            "has_onlyfans": False,
-            "onlyfans_urls": [],
-            "detection_method": None,
-            "debug_info": [],
-            "errors": []
-        }
-        
-        try:
-            # Phase 1: Fast HTTP detection (1-2 seconds)
-            self.results["debug_info"].append("Phase 1: Fast HTTP detection")
-            if await self._phase1_fast_detection(bio_link):
-                self.results["detection_method"] = "Phase 1: Direct HTTP detection"
-                return self.results
-
-            # Phase 2: Enhanced HTTP detection (3-5 seconds)
-            self.results["debug_info"].append("Phase 2: Enhanced HTTP detection")
-            if await self._phase2_enhanced_detection(bio_link):
-                self.results["detection_method"] = "Phase 2: Enhanced HTTP strategies"
-                return self.results
-
-            # Phase 3: Interactive detection with Playwright (10-15 seconds)
-            if PLAYWRIGHT_AVAILABLE:
-                self.results["debug_info"].append("Phase 3: Interactive detection with Playwright")
-                if await self._phase3_interactive_detection(bio_link):
-                    self.results["detection_method"] = "Phase 3: Interactive Playwright detection"
-                    return self.results
-            else:
-                self.results["debug_info"].append("Phase 3: Skipped (Playwright not available)")
-
-            # Phase 4: Final fallback extraction (5-10 seconds)
-            self.results["debug_info"].append("Phase 4: Final fallback extraction")
-            if await self._final_fallback_extraction(bio_link):
-                self.results["detection_method"] = "Phase 4: Final fallback extraction"
-                return self.results
-
-            # Phase 5: Desperate mode extraction (10-15 seconds)
-            self.results["debug_info"].append("Phase 5: Desperate mode extraction")
-            if await self._desperate_mode_extraction(bio_link):
-                self.results["detection_method"] = "Phase 5: Desperate mode extraction"
-                return self.results
-
-            # All phases completed - no OnlyFans found
-            self.results["debug_info"].append("All phases completed - no OnlyFans found")
-            
-        except Exception as e:
-            self.results["errors"].append(f"Detection failed: {str(e)}")
-            
-        return self.results
-
-    async def _phase1_fast_detection(self, bio_link: str) -> bool:
-        """Phase 1: Fast direct detection"""
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(bio_link)
-                
-                if response.status_code == 200:
-                    content = response.text.lower()
-                    of_urls = re.findall(r'https?://[^\s<>"\']*onlyfans\.com[^\s<>"\']*', content, re.IGNORECASE)
-                    
-                    if of_urls:
-                        self.results["has_onlyfans"] = True
-                        self.results["onlyfans_urls"] = list(set(of_urls))
-                        return True
-                        
-        except Exception as e:
-            self.results["errors"].append(f"Phase 1 failed: {str(e)}")
-            
-        return False
-
-    async def _phase2_enhanced_detection(self, bio_link: str) -> bool:
-        """Phase 2: Enhanced HTTP detection"""
-        try:
-            # Strategy 1: Better redirect handling
-            if await self._handle_redirects_better(bio_link):
-                return True
-                
-            # Strategy 2: Try different user agents
-            if await self._try_different_user_agents(bio_link):
-                return True
-                
-            # Strategy 3: Enhanced link extraction
-            if await self._enhanced_link_extraction(bio_link):
-                return True
-                
-        except Exception as e:
-            self.results["errors"].append(f"Phase 2 failed: {str(e)}")
-            
-        return False
-
-    async def _phase3_interactive_detection(self, bio_link: str) -> bool:
-        """Phase 3: Interactive detection with Playwright"""
-        try:
-            # Special handling for link.me (based on working solution)
-            if "link.me" in bio_link.lower():
-                return await self._handle_linkme_interactive(bio_link)
-            
-            # Special handling for beacons.ai
-            elif "beacons.ai" in bio_link.lower():
-                # Try the aggressive interactive approach first
-                if await self._handle_beacons_interactive(bio_link):
-                    return True
-                
-                # If that fails, try the alternative approach
-                self.results["debug_info"].append("Interactive approach failed, trying alternative method...")
-                if await self._handle_beacons_alternative(bio_link):
-                    return True
-                
-                return False
-            
-            # Special handling for xli.ink
-            elif "xli.ink" in bio_link.lower():
-                return await self._handle_xli_interactive(bio_link)
-            
-            # Generic interactive detection
-            else:
-                return await self._generic_interactive_detection(bio_link)
-                
-        except Exception as e:
-            self.results["errors"].append(f"Phase 3 failed: {str(e)}")
-            
-        return False
-
-    async def _final_fallback_extraction(self, bio_link: str) -> bool:
-        """Final fallback: Extract OnlyFans from any text content"""
-        try:
-            async with httpx.AsyncClient(timeout=20.0) as client:
-                # Try with different user agents and headers
-                headers_list = [
-                    {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                        'Accept-Language': 'en-US,en;q=0.5',
-                        'Accept-Encoding': 'gzip, deflate',
-                        'DNT': '1',
-                        'Connection': 'keep-alive',
-                        'Upgrade-Insecure-Requests': '1'
-                    },
-                    {
-                        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1.2 Mobile/15E148 Safari/604.1',
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                ]
-                
-                for headers in headers_list:
-                    try:
-                        response = await client.get(bio_link, headers=headers)
-                        
-                        if response.status_code == 200:
-                            content = response.text
-                            
-                            # Look for ANY mention of OnlyFans
-                            if 'onlyfans' in content.lower():
-                                self.results["debug_info"].append(f"OnlyFans found in approach {i}, extracting...")
-                                
-                                # Strategy 1: Extract full URLs
-                                of_urls = re.findall(r'https?://[^\s<>"\']*onlyfans\.com[^\s<>"\']*', content, re.IGNORECASE)
-                                if of_urls:
-                                    self.results["has_onlyfans"] = True
-                                    self.results["onlyfans_urls"] = list(set(of_urls))
-                                    self.results["debug_info"].append("Found OnlyFans URLs in fallback extraction")
-                                    return True
-                                
-                                # Strategy 2: Just confirm OnlyFans exists
-                                self.results["has_onlyfans"] = True
-                                self.results["onlyfans_urls"] = ["https://onlyfans.com/detected"]
-                                self.results["debug_info"].append("OnlyFans confirmed to exist in content")
-                                return True
-                                
-                                # Strategy 2: Extract usernames and construct URLs
-                                username_patterns = [
-                                    r'onlyfans\.com/([a-zA-Z0-9_-]+)',
-                                    r'@([a-zA-Z0-9_-]+).*onlyfans',
-                                    r'onlyfans.*@([a-zA-Z0-9_-]+)',
-                                    r'([a-zA-Z0-9_-]+).*onlyfans\.com'
-                                ]
-                                
-                                for pattern in username_patterns:
-                                    username_matches = re.findall(pattern, content, re.IGNORECASE)
-                                    if username_matches:
-                                        clean_urls = []
-                                        for username in username_matches:
-                                            if len(username) >= 2 and len(username) <= 30:
-                                                # Skip obvious non-usernames
-                                                if not any(skip in username.lower() for skip in ['static', 'images', 'api', 'css', 'js']):
-                                                    clean_urls.append(f"https://onlyfans.com/{username}")
-                                        
-                                        if clean_urls:
-                                            self.results["has_onlyfans"] = True
-                                            self.results["onlyfans_urls"] = list(set(clean_urls))
-                                            self.results["debug_info"].append(f"Constructed OnlyFans URLs from pattern: {pattern[:30]}...")
-                                            return True
-                                
-                                # Strategy 3: Look for any text that might contain OnlyFans info
-                                text_patterns = [
-                                    r'<[^>]*>([^<]*onlyfans[^<]*)</[^>]*>',
-                                    r'<[^>]*>([^<]*onlyfans[^<]*)<',
-                                    r'>([^<]*onlyfans[^<]*)<',
-                                    r'([^<>]*onlyfans[^<>]*)'
-                                ]
-                                
-                                for pattern in text_patterns:
-                                    matches = re.findall(pattern, content, re.IGNORECASE)
-                                    if matches:
-                                        for match in matches:
-                                            if isinstance(match, tuple):
-                                                match = match[0]
-                                            if 'onlyfans' in match.lower():
-                                                # Try to extract username from this text
-                                                username_match = re.search(r'([a-zA-Z0-9_-]{2,30})', match)
-                                                if username_match:
-                                                    username = username_match.group(1)
-                                                    if not any(skip in username.lower() for skip in ['static', 'images', 'api', 'css', 'js']):
-                                                        self.results["has_onlyfans"] = True
-                                                        self.results["onlyfans_urls"] = [f"https://onlyfans.com/{username}"]
-                                                        self.results["debug_info"].append(f"Extracted OnlyFans username from text: {username}")
-                                                        return True
-                                
-                    except Exception as e:
-                        continue
-                        
-        except Exception as e:
-            self.results["errors"].append(f"Final fallback extraction failed: {str(e)}")
-            
-        return False
-
-    async def _handle_linkme_interactive(self, bio_link: str) -> bool:
-        """Interactive detection for link.me (based on working solution)"""
-        try:
-            async with async_playwright() as p:
-                # Heroku-specific Chrome configuration
-                chrome_args = [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-accelerated-2d-canvas',
-                    '--no-first-run',
-                    '--no-zygote',
-                    '--single-process',
-                    '--disable-gpu'
-                ]
-                
-                # Railway-optimized browser launch
-                try:
-                    # Try to use system Chrome if available
-                    chrome_bin = os.environ.get('CHROME_BIN') or os.environ.get('CHROME_PATH')
-                    if chrome_bin and os.path.exists(chrome_bin):
-                        browser = await p.chromium.launch(
-                            executable_path=chrome_bin,
-                            headless=True,
-                            args=chrome_args
-                        )
-                        self.results["debug_info"].append(f"Using system Chrome: {chrome_bin}")
-                    else:
-                        # Use installed chromium with Railway-optimized args
-                        browser = await p.chromium.launch(
-                            headless=True,
-                            args=chrome_args + [
-                                '--disable-web-security',
-                                '--disable-features=VizDisplayCompositor',
-                                '--disable-ipc-flooding-protection'
-                            ]
-                        )
-                        self.results["debug_info"].append("Using installed Chromium")
-                except Exception as e:
-                    # Final fallback to basic chromium
-                    self.results["debug_info"].append(f"Chrome launch failed: {str(e)}, falling back to basic chromium")
-                    browser = await p.chromium.launch(
-                        headless=True,
-                        args=['--no-sandbox', '--disable-dev-shm-usage']
-                    )
-                
-                context = await browser.new_context()
-                page = await context.new_page()
-                
-                onlyfans_found = None
-                
-                # Handle redirects
-                async def handle_response(response):
-                    nonlocal onlyfans_found
-                    if response.status >= 300 and response.status < 400:
-                        location = response.headers.get('location', '')
-                        if 'onlyfans.com' in location.lower() and '/files' not in location:
-                            onlyfans_found = location
-                            self.results["debug_info"].append(f"OnlyFans redirect captured: {location}")
-                
-                page.on('response', handle_response)
-                
-                try:
-                    self.results["debug_info"].append("Loading link.me page...")
-                    await page.goto(bio_link, wait_until="domcontentloaded", timeout=15000)
-                    await page.wait_for_timeout(3000)
-                    
-                    # Accept cookies if present
-                    try:
-                        accept_btn = page.locator("button:has-text('Accept All')")
-                        if await accept_btn.count() > 0:
-                            await accept_btn.click()
-                            await page.wait_for_timeout(2000)
-                            self.results["debug_info"].append("Cookies accepted")
-                    except:
-                        pass
-                    
-                    # Look for OnlyFans content in the page first
-                    page_content = await page.content()
-                    of_urls = re.findall(r'https?://[^\s<>"\']*onlyfans\.com[^\s<>"\']*', page_content, re.IGNORECASE)
-                    if of_urls:
-                        self.results["has_onlyfans"] = True
-                        self.results["onlyfans_urls"] = list(set(of_urls))
-                        self.results["debug_info"].append("Found OnlyFans URLs directly in page content")
-                        await browser.close()
-                        return True
-                    
-                    # Just check if OnlyFans is mentioned anywhere
-                    if 'onlyfans' in page_content.lower():
-                        self.results["has_onlyfans"] = True
-                        self.results["onlyfans_urls"] = ["https://onlyfans.com/detected"]
-                        self.results["debug_info"].append("OnlyFans detected in page content")
-                        await browser.close()
-                        return True
-                    
-                    # Click the OnlyFans container div
-                    onlyfans_container = page.locator(".singlealbum.singlebigitem.socialmedialink:has-text('OnlyFans')")
-                    
-                    if await onlyfans_container.count() > 0:
-                        self.results["debug_info"].append("Found OnlyFans container, clicking...")
-                        await onlyfans_container.click(force=True)
-                        await page.wait_for_timeout(3000)
-                        
-                        # Look for Continue button
-                        continue_selectors = [
-                            "button:has-text('Continue')",
-                            "button:has-text('CONTINUE')",
-                            "button:has-text('Proceed')",
-                            "button:has-text('Enter')",
-                            "button:has-text('Yes')"
-                        ]
-                        
-                        for selector in continue_selectors:
-                            try:
-                                continue_btn = page.locator(selector)
-                                if await continue_btn.count() > 0:
-                                    await continue_btn.wait_for(state="visible", timeout=2000)
-                                    await continue_btn.click()
-                                    self.results["debug_info"].append("Continue button clicked")
-                                    
-                                    # Wait for redirect
-                                    await page.wait_for_timeout(5000)
-                                    
-                                    # Check final result
-                                    current_url = page.url
-                                    if 'onlyfans.com' in current_url.lower():
-                                        onlyfans_found = current_url
-                                        break
-                                    elif onlyfans_found:
-                                        break
-                                    
-                            except Exception:
-                                continue
-                        
-                        if onlyfans_found:
-                            self.results["has_onlyfans"] = True
-                            self.results["onlyfans_urls"] = [onlyfans_found]
-                            await browser.close()
-                            return True
-                    
-                    # If clicking didn't work, try to extract from any visible OnlyFans elements
-                    try:
-                        # Look for any element containing OnlyFans text
-                        onlyfans_elements = page.locator("*:has-text('OnlyFans')")
-                        if await onlyfans_elements.count() > 0:
-                            self.results["debug_info"].append("Found OnlyFans text elements, extracting...")
-                            
-                            for i in range(await onlyfans_elements.count()):
-                                try:
-                                    element = onlyfans_elements.nth(i)
-                                    text = await element.text_content()
-                                    if text and 'onlyfans' in text.lower():
-                                        # Look for URLs in the text
-                                        urls = re.findall(r'https?://[^\s<>"\']*onlyfans\.com[^\s<>"\']*', text, re.IGNORECASE)
-                                        if urls:
-                                            self.results["has_onlyfans"] = True
-                                            self.results["onlyfans_urls"] = list(set(urls))
-                                            self.results["debug_info"].append("Found OnlyFans URLs in text elements")
-                                            await browser.close()
-                                            return True
-                                except:
-                                    continue
-                    
-                    except Exception as e:
-                        self.results["debug_info"].append(f"Text extraction failed: {str(e)}")
-                    
-                finally:
-                    await browser.close()
-                    
-        except Exception as e:
-            self.results["errors"].append(f"Link.me interactive detection failed: {str(e)}")
-            
-        return False
-
-    async def _handle_beacons_interactive(self, bio_link: str) -> bool:
-        """Interactive detection for beacons.ai with aggressive human-like behavior"""
-        try:
-            async with async_playwright() as p:
-                # Heroku-specific Chrome configuration
-                chrome_args = [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-accelerated-2d-canvas',
-                    '--no-first-run',
-                    '--no-zygote',
-                    '--single-process',
-                    '--disable-gpu'
-                ]
-                
-                # Railway-optimized browser launch
-                try:
-                    # Try to use system Chrome if available
-                    chrome_bin = os.environ.get('CHROME_BIN') or os.environ.get('CHROME_PATH')
-                    if chrome_bin and os.path.exists(chrome_bin):
-                        browser = await p.chromium.launch(
-                            executable_path=chrome_bin,
-                            headless=True,
-                            args=chrome_args
-                        )
-                        self.results["debug_info"].append(f"Using system Chrome: {chrome_bin}")
-                    else:
-                        # Use installed chromium with Railway-optimized args
-                        browser = await p.chromium.launch(
-                            headless=True,
-                            args=chrome_args + [
-                                '--disable-web-security',
-                                '--disable-features=VizDisplayCompositor',
-                                '--disable-ipc-flooding-protection'
-                            ]
-                        )
-                        self.results["debug_info"].append("Using installed Chromium")
-                except Exception as e:
-                    # Final fallback to basic chromium
-                    self.results["debug_info"].append(f"Chrome launch failed: {str(e)}, falling back to basic chromium")
-                    browser = await p.chromium.launch(
-                        headless=True,
-                        args=['--no-sandbox', '--disable-dev-shm-usage']
-                    )
-                
-                # Create a more sophisticated context with advanced settings
-                context = await browser.new_context(
-                    user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                    viewport={'width': 1920, 'height': 1080},
-                    locale='en-US',
-                    timezone_id='America/New_York',
-                    permissions=['geolocation'],
-                    extra_http_headers={
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                        'Accept-Language': 'en-US,en;q=0.5',
-                        'Accept-Encoding': 'gzip, deflate',
-                        'DNT': '1',
-                        'Connection': 'keep-alive',
-                        'Upgrade-Insecure-Requests': '1',
-                        'Sec-Fetch-Dest': 'document',
-                        'Sec-Fetch-Mode': 'navigate',
-                        'Sec-Fetch-Site': 'none',
-                        'Sec-Fetch-User': '?1',
-                        'Cache-Control': 'max-age=0'
-                    }
-                )
-                
-                page = await context.new_page()
-                
-                try:
-                    self.results["debug_info"].append("Loading beacons.ai page with aggressive human-like behavior...")
-                    
-                    # First, try to visit the homepage to establish a session
-                    try:
-                        homepage = "https://beacons.ai"
-                        await page.goto(homepage, wait_until="domcontentloaded", timeout=15000)
-                        await page.wait_for_timeout(3000)
-                        self.results["debug_info"].append("Visited homepage to establish session")
-                    except:
-                        pass
-                    
-                    # Now visit the target page
-                    await page.goto(bio_link, wait_until="domcontentloaded", timeout=20000)
-                    
-                    # Wait like a human would
-                    await page.wait_for_timeout(3000)
-                    
-                    # Simulate realistic mouse movements
-                    await page.mouse.move(100, 100)
-                    await page.wait_for_timeout(800)
-                    await page.mouse.move(500, 300)
-                    await page.wait_for_timeout(600)
-                    await page.mouse.move(800, 200)
-                    await page.wait_for_timeout(700)
-                    await page.mouse.move(400, 600)
-                    await page.wait_for_timeout(500)
-                    
-                    # Scroll like a human (gradual, realistic)
-                    for i in range(1, 6):
-                        await page.evaluate(f"window.scrollTo(0, {i * 100})")
-                        await page.wait_for_timeout(300 + (i * 100))  # Variable timing
-                    
-                    await page.wait_for_timeout(2000)
-                    
-                    # Scroll back up gradually
-                    for i in range(5, 0, -1):
-                        await page.evaluate(f"window.scrollTo(0, {i * 100})")
-                        await page.wait_for_timeout(200 + (i * 50))
-                    
-                    await page.wait_for_timeout(1500)
-                    
-                    # Try to interact with any visible elements
-                    try:
-                        # Look for any clickable elements and hover over them
-                        clickable_elements = page.locator("a, button, [role='button'], [tabindex]")
-                        if await clickable_elements.count() > 0:
-                            for i in range(min(5, await clickable_elements.count())):
-                                try:
-                                    element = clickable_elements.nth(i)
-                                    await element.hover()
-                                    await page.wait_for_timeout(500)
-                                except:
-                                    continue
-                    except:
-                        pass
-                    
-                    # Wait for content to load
-                    await page.wait_for_timeout(4000)
-                    
-                    # Look for OnlyFans content
-                    page_content = await page.content()
-                    
-                    # Just check if OnlyFans is mentioned anywhere
-                    if 'onlyfans' in page_content.lower():
-                        self.results["has_onlyfans"] = True
-                        self.results["onlyfans_urls"] = ["https://onlyfans.com/detected"]
-                        self.results["debug_info"].append("OnlyFans detected in beacons.ai content")
-                        await browser.close()
-                        return True
-                    
-                    # If no OnlyFans found, try to wait longer and scroll more
-                    self.results["debug_info"].append("No OnlyFans found, trying more aggressive human-like behavior...")
-                    
-                    # More aggressive scrolling
-                    await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                    await page.wait_for_timeout(3000)
-                    await page.evaluate("window.scrollTo(0, 0)")
-                    await page.wait_for_timeout(2000)
-                    
-                    # Try to trigger any JavaScript events
-                    try:
-                        await page.evaluate("window.dispatchEvent(new Event('scroll'))")
-                        await page.wait_for_timeout(1000)
-                        await page.evaluate("window.dispatchEvent(new Event('resize'))")
-                        await page.wait_for_timeout(1000)
-                        await page.evaluate("window.dispatchEvent(new Event('focus'))")
-                        await page.wait_for_timeout(1000)
-                    except:
-                        pass
-                    
-                    # Check again
-                    page_content = await page.content()
-                    if 'onlyfans' in page_content.lower():
-                        self.results["has_onlyfans"] = True
-                        self.results["onlyfans_urls"] = ["https://onlyfans.com/detected"]
-                        self.results["debug_info"].append("OnlyFans detected after aggressive behavior")
-                        await browser.close()
-                        return True
-                        
-                finally:
-                    await browser.close()
-                    
-        except Exception as e:
-            self.results["errors"].append(f"Beacons.ai interactive detection failed: {str(e)}")
-            
-        return False
-
-    async def _handle_beacons_alternative(self, bio_link: str) -> bool:
-        """Alternative approach for beacons.ai using different methods"""
-        try:
-            self.results["debug_info"].append("Trying alternative approach for beacons.ai...")
-            
-            # Try different user agents and approaches
-            approaches = [
-                {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.5',
-                    'Accept-Encoding': 'gzip, deflate',
-                    'DNT': '1',
-                    'Connection': 'keep-alive',
-                    'Upgrade-Insecure-Requests': '1',
-                    'Sec-Fetch-Dest': 'document',
-                    'Sec-Fetch-Mode': 'navigate',
-                    'Sec-Fetch-Site': 'none',
-                    'Sec-Fetch-User': '?1',
-                    'Cache-Control': 'max-age=0',
-                    'Referer': 'https://www.google.com/'
-                },
-                {
-                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.5',
-                    'Accept-Encoding': 'gzip, deflate',
-                    'DNT': '1',
-                    'Connection': 'keep-alive',
-                    'Upgrade-Insecure-Requests': '1',
-                    'Referer': 'https://www.bing.com/'
-                },
-                {
-                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1.2 Mobile/15E148 Safari/604.1',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.5',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Referer': 'https://www.facebook.com/'
-                }
-            ]
-            
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                for i, headers in enumerate(approaches, 1):
-                    try:
-                        self.results["debug_info"].append(f"Alternative approach {i} for beacons.ai...")
-                        
-                        # Try to access the page with these headers
-                        response = await client.get(bio_link, headers=headers)
-                        
-                        if response.status_code == 200:
-                            content = response.text
-                            
-                            # Check if OnlyFans is mentioned
-                            if 'onlyfans' in content.lower():
-                                self.results["has_onlyfans"] = True
-                                self.results["onlyfans_urls"] = ["https://onlyfans.com/detected"]
-                                self.results["debug_info"].append(f"Alternative approach {i} succeeded!")
-                                return True
-                                
-                        elif response.status_code == 403:
-                            self.results["debug_info"].append(f"Alternative approach {i} blocked (403)")
-                        else:
-                            self.results["debug_info"].append(f"Alternative approach {i} status: {response.status_code}")
-                            
-                    except Exception as e:
-                        self.results["debug_info"].append(f"Alternative approach {i} failed: {str(e)[:50]}")
-                        continue
-                        
-        except Exception as e:
-            self.results["errors"].append(f"Alternative beacons.ai approach failed: {str(e)}")
-            
-        return False
-
-    async def _handle_xli_interactive(self, bio_link: str) -> bool:
-        """Interactive detection for xli.ink"""
-        try:
-            async with async_playwright() as p:
-                # Heroku-specific Chrome configuration
-                chrome_args = [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-accelerated-2d-canvas',
-                    '--no-first-run',
-                    '--no-zygote',
-                    '--single-process',
-                    '--disable-gpu'
-                ]
-                
-                # Railway-optimized browser launch
-                try:
-                    # Try to use system Chrome if available
-                    chrome_bin = os.environ.get('CHROME_BIN') or os.environ.get('CHROME_PATH')
-                    if chrome_bin and os.path.exists(chrome_bin):
-                        browser = await p.chromium.launch(
-                            executable_path=chrome_bin,
-                            headless=True,
-                            args=chrome_args
-                        )
-                        self.results["debug_info"].append(f"Using system Chrome: {chrome_bin}")
-                    else:
-                        # Use installed chromium with Railway-optimized args
-                        browser = await p.chromium.launch(
-                            headless=True,
-                            args=chrome_args + [
-                                '--disable-web-security',
-                                '--disable-features=VizDisplayCompositor',
-                                '--disable-ipc-flooding-protection'
-                            ]
-                        )
-                        self.results["debug_info"].append("Using installed Chromium")
-                except Exception as e:
-                    # Final fallback to basic chromium
-                    self.results["debug_info"].append(f"Chrome launch failed: {str(e)}, falling back to basic chromium")
-                    browser = await p.chromium.launch(
-                        headless=True,
-                        args=['--no-sandbox', '--disable-dev-shm-usage']
-                    )
-                
-                context = await browser.new_context()
-                page = await context.new_page()
-                
-                try:
-                    self.results["debug_info"].append("Loading xli.ink page...")
-                    await page.goto(bio_link, wait_until="networkidle", timeout=20000)
-                    
-                    # Wait for dynamic content
-                    await page.wait_for_timeout(8000)
-                    
-                    # Look for OnlyFans content
-                    page_content = await page.content()
-                    of_urls = re.findall(r'https?://[^\s<>"\']*onlyfans\.com[^\s<>"\']*', page_content, re.IGNORECASE)
-                    
-                    if of_urls:
-                        self.results["has_onlyfans"] = True
-                        self.results["onlyfans_urls"] = list(set(of_urls))
-                        await browser.close()
-                        return True
-                    
-                    # Just check if OnlyFans is mentioned anywhere
-                    if 'onlyfans' in page_content.lower():
-                        self.results["has_onlyfans"] = True
-                        self.results["onlyfans_urls"] = ["https://onlyfans.com/detected"]
-                        self.results["debug_info"].append("OnlyFans detected in xli.ink content")
-                        await browser.close()
-                        return True
-                    
-                finally:
-                    await browser.close()
-                    
-        except Exception as e:
-            self.results["errors"].append(f"Xli.ink interactive detection failed: {str(e)}")
-            
-        return False
-
-    async def _generic_interactive_detection(self, bio_link: str) -> bool:
-        """Generic interactive detection for other platforms"""
-        try:
-            async with async_playwright() as p:
-                # Heroku-specific Chrome configuration
-                chrome_args = [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-accelerated-2d-canvas',
-                    '--no-first-run',
-                    '--no-zygote',
-                    '--single-process',
-                    '--disable-gpu'
-                ]
-                
-                # Railway-optimized browser launch
-                try:
-                    # Try to use system Chrome if available
-                    chrome_bin = os.environ.get('CHROME_BIN') or os.environ.get('CHROME_PATH')
-                    if chrome_bin and os.path.exists(chrome_bin):
-                        browser = await p.chromium.launch(
-                            executable_path=chrome_bin,
-                            headless=True,
-                            args=chrome_args
-                        )
-                        self.results["debug_info"].append(f"Using system Chrome: {chrome_bin}")
-                    else:
-                        # Use installed chromium with Railway-optimized args
-                        browser = await p.chromium.launch(
-                            headless=True,
-                            args=chrome_args + [
-                                '--disable-web-security',
-                                '--disable-features=VizDisplayCompositor',
-                                '--disable-ipc-flooding-protection'
-                            ]
-                        )
-                        self.results["debug_info"].append("Using installed Chromium")
-                except Exception as e:
-                    # Final fallback to basic chromium
-                    self.results["debug_info"].append(f"Chrome launch failed: {str(e)}, falling back to basic chromium")
-                    browser = await p.chromium.launch(
-                        headless=True,
-                        args=['--no-sandbox', '--disable-dev-shm-usage']
-                    )
-                
-                context = await browser.new_context()
-                page = await context.new_page()
-                
-                try:
-                    self.results["debug_info"].append("Generic interactive detection...")
-                    await page.goto(bio_link, wait_until="networkidle", timeout=20000)
-                    
-                    # Wait for content
-                    await page.wait_for_timeout(5000)
-                    
-                    # Look for OnlyFans content
-                    page_content = await page.content()
-                    of_urls = re.findall(r'https?://[^\s<>"\']*onlyfans\.com[^\s<>"\']*', page_content, re.IGNORECASE)
-                    
-                    if of_urls:
-                        self.results["has_onlyfans"] = True
-                        self.results["onlyfans_urls"] = list(set(of_urls))
-                        await browser.close()
-                        return True
-                        
-                finally:
-                    await browser.close()
-                    
-        except Exception as e:
-            self.results["errors"].append(f"Generic interactive detection failed: {str(e)}")
-            
-        return False
-
-    async def _handle_redirects_better(self, bio_link: str) -> bool:
-        """Enhanced redirect handling"""
-        try:
-            async with httpx.AsyncClient(timeout=15.0, follow_redirects=False) as client:
-                current_url = bio_link
-                max_redirects = 5
-                redirect_count = 0
-                
-                while redirect_count < max_redirects:
-                    try:
-                        response = await client.get(current_url)
-                        
-                        if response.status_code in (301, 302, 303, 307, 308):
-                            location = response.headers.get('location')
-                            if location:
-                                if location.startswith('/'):
-                                    current_url = urljoin(current_url, location)
-                                elif location.startswith('http'):
-                                    current_url = location
-                                else:
-                                    current_url = urljoin(current_url, location)
-                                
-                                redirect_count += 1
-                                self.results["debug_info"].append(f"Redirect {redirect_count}: {current_url}")
-                                continue
-                            else:
-                                break
-                        elif response.status_code == 200:
-                            content = response.text.lower()
-                            of_urls = re.findall(r'https?://[^\s<>"\']*onlyfans\.com[^\s<>"\']*', content, re.IGNORECASE)
-                            
-                            if of_urls:
-                                self.results["has_onlyfans"] = True
-                                self.results["onlyfans_urls"] = list(set(of_urls))
-                                self.results["debug_info"].append(f"Found OnlyFans after {redirect_count} redirects")
-                                return True
-                            break
-                        else:
-                            break
-                            
-                    except Exception as e:
-                        self.results["errors"].append(f"Redirect handling failed: {str(e)}")
-                        break
-                        
-        except Exception as e:
-            self.results["errors"].append(f"Redirect handling failed: {str(e)}")
-            
-        return False
-
-    async def _try_different_user_agents(self, bio_link: str) -> bool:
-        """Try different user agents"""
-        user_agents = [
+        self.user_agents = [
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1.2 Mobile/15E148 Safari/604.1',
-            'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+            'Mozilla/5.0 (iPad; CPU OS 17_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1.2 Mobile/15E148 Safari/604.1',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         ]
         
-        try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                for user_agent in user_agents:
-                    try:
-                        headers = {'User-Agent': user_agent}
-                        response = await client.get(bio_link, headers=headers)
-                        
-                        if response.status_code == 200:
-                            content = response.text.lower()
-                            of_urls = re.findall(r'https?://[^\s<>"\']*onlyfans\.com[^\s<>"\']*', content, re.IGNORECASE)
-                            
-                            if of_urls:
-                                self.results["has_onlyfans"] = True
-                                self.results["onlyfans_urls"] = list(set(of_urls))
-                                self.results["debug_info"].append(f"Found OnlyFans with User-Agent: {user_agent[:50]}...")
-                                return True
-                                
-                    except Exception as e:
-                        continue
-                        
-        except Exception as e:
-            self.results["errors"].append(f"User agent testing failed: {str(e)}")
-            
-        return False
+        # Enhanced patterns for bio link platforms
+        self.platform_patterns = {
+            'link.me': {
+                'selectors': ['a[href*="onlyfans"], a[href*="onlyfans.com"]', '.link-item a', '.bio-link a'],
+                'text_patterns': [r'onlyfans\.com/[a-zA-Z0-9_.-]+', r'@[a-zA-Z0-9_.-]+'],
+                'interactive_elements': ['.link-item', '.bio-link', '.social-link']
+            },
+            'beacons.ai': {
+                'selectors': ['a[href*="onlyfans"], a[href*="onlyfans.com"]', '.link a', '.social-link a'],
+                'text_patterns': [r'onlyfans\.com/[a-zA-Z0-9_.-]+', r'@[a-zA-Z0-9_.-]+'],
+                'interactive_elements': ['.link', '.social-link', '.bio-link']
+            },
+            'taplink.cc': {
+                'selectors': ['a[href*="onlyfans"], a[href*="onlyfans.com"]', '.link a', '.social a'],
+                'text_patterns': [r'onlyfans\.com/[a-zA-Z0-9_.-]+', r'@[a-zA-Z0-9_.-]+'],
+                'interactive_elements': ['.link', '.social', '.bio']
+            }
+        }
 
-    async def _enhanced_link_extraction(self, bio_link: str) -> bool:
-        """Enhanced link extraction"""
+    async def detect_onlyfans_in_bio_link(self, bio_link: str) -> Dict:
+        """
+        Enhanced OnlyFans detection with multiple fallback strategies
+        """
+        start_time = time.time()
+        debug_info = []
+        errors = []
+        detection_method = None
+        
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                response = await client.get(bio_link)
+            # Phase 1: Fast HTTP detection (1-2 seconds)
+            debug_info.append("Phase 1: Fast HTTP detection")
+            result = await self._fast_http_detection(bio_link)
+            if result['has_onlyfans']:
+                detection_method = "Phase 1: Direct HTTP detection"
+                return self._format_result(True, result['onlyfans_urls'], detection_method, debug_info, errors, start_time)
+            
+            # Phase 2: Enhanced HTTP detection (2-5 seconds)
+            debug_info.append("Phase 2: Enhanced HTTP detection")
+            result = await self._enhanced_http_detection(bio_link)
+            if result['has_onlyfans']:
+                detection_method = "Phase 2: Enhanced HTTP strategies"
+                return self._format_result(True, result['onlyfans_urls'], detection_method, debug_info, errors, start_time)
+            
+            # Phase 3: Try Playwright if available (5-15 seconds)
+            debug_info.append("Phase 3: Interactive detection with Playwright")
+            try:
+                result = await self._playwright_detection(bio_link)
+                if result['has_onlyfans']:
+                    detection_method = "Phase 3: Interactive Playwright detection"
+                    return self._format_result(True, result['onlyfans_urls'], detection_method, debug_info, errors, start_time)
+            except Exception as e:
+                error_msg = f"Playwright detection failed: {str(e)}"
+                errors.append(error_msg)
+                debug_info.append(f"Phase 3: {error_msg}")
+            
+            # Phase 4: Final fallback extraction (2-3 seconds)
+            debug_info.append("Phase 4: Final fallback extraction")
+            result = await self._final_fallback_extraction(bio_link)
+            if result['has_onlyfans']:
+                detection_method = "Phase 4: Fallback extraction"
+                return self._format_result(True, result['onlyfans_urls'], detection_method, debug_info, errors, start_time)
+            
+            # Phase 5: Desperate mode (3-5 seconds)
+            debug_info.append("Phase 5: Desperate mode extraction")
+            result = await self._desperate_mode_extraction(bio_link)
+            if result['has_onlyfans']:
+                detection_method = "Phase 5: Desperate mode extraction"
+                return self._format_result(True, result['onlyfans_urls'], detection_method, debug_info, errors, start_time)
+            
+            debug_info.append("All phases completed - no OnlyFans found")
+            return self._format_result(False, [], None, debug_info, errors, start_time)
+            
+        except Exception as e:
+            error_msg = f"Detection failed: {str(e)}"
+            errors.append(error_msg)
+            debug_info.append(f"Error: {error_msg}")
+            return self._format_result(False, [], None, debug_info, errors, start_time)
+
+    async def _fast_http_detection(self, bio_link: str) -> Dict:
+        """Fast HTTP detection - direct content check"""
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(bio_link, follow_redirects=True)
+                content = response.text.lower()
                 
-                if response.status_code == 200:
-                    content = response.text
+                # Check for direct OnlyFans links
+                for pattern in self.onlyfans_patterns:
+                    matches = re.findall(pattern, content, re.IGNORECASE)
+                    if matches:
+                        return {'has_onlyfans': True, 'onlyfans_urls': matches}
+                
+                return {'has_onlyfans': False, 'onlyfans_urls': []}
+                
+        except Exception as e:
+            logger.warning(f"Fast HTTP detection failed: {e}")
+            return {'has_onlyfans': False, 'onlyfans_urls': []}
+
+    async def _enhanced_http_detection(self, bio_link: str) -> Dict:
+        """Enhanced HTTP detection with multiple strategies"""
+        try:
+            # Try different User-Agents
+            for user_agent in self.user_agents[:3]:  # Limit to 3 attempts
+                try:
+                    async with httpx.AsyncClient(timeout=10.0) as client:
+                        headers = {'User-Agent': user_agent}
+                        response = await client.get(bio_link, headers=headers, follow_redirects=True)
+                        content = response.text.lower()
+                        
+                        # Check for OnlyFans
+                        for pattern in self.onlyfans_patterns:
+                            matches = re.findall(pattern, content, re.IGNORECASE)
+                            if matches:
+                                debug_info.append(f"Found OnlyFans with User-Agent: {user_agent[:50]}...")
+                                return {'has_onlyfans': True, 'onlyfans_urls': matches}
+                        
+                        # Check for redirects
+                        if response.history:
+                            redirect_count = len(response.history)
+                            debug_info.append(f"Redirect {redirect_count}: {response.url}")
+                            
+                            # Check final URL content
+                            final_content = response.text.lower()
+                            for pattern in self.onlyfans_patterns:
+                                matches = re.findall(pattern, final_content, re.IGNORECASE)
+                                if matches:
+                                    debug_info.append(f"Found OnlyFans after {redirect_count} redirects")
+                                    return {'has_onlyfans': True, 'onlyfans_urls': matches}
+                        
+                except Exception as e:
+                    continue
+            
+            return {'has_onlyfans': False, 'onlyfans_urls': []}
+            
+        except Exception as e:
+            logger.warning(f"Enhanced HTTP detection failed: {e}")
+            return {'has_onlyfans': False, 'onlyfans_urls': []}
+
+    async def _playwright_detection(self, bio_link: str) -> Dict:
+        """Playwright-based detection with fallback"""
+        try:
+            # Try to import Playwright
+            try:
+                from playwright.async_api import async_playwright
+            except ImportError:
+                raise Exception("Playwright not available")
+            
+            async with async_playwright() as p:
+                # Try to launch browser
+                try:
+                    browser = await p.chromium.launch(
+                        headless=True,
+                        args=[
+                            '--no-sandbox',
+                            '--disable-setuid-sandbox',
+                            '--disable-dev-shm-usage',
+                            '--disable-accelerated-2d-canvas',
+                            '--no-first-run',
+                            '--no-zygote',
+                            '--disable-gpu'
+                        ]
+                    )
+                except Exception as e:
+                    # Fallback to basic chromium
+                    logger.warning(f"Chrome launch failed: {e}, falling back to basic chromium")
+                    browser = await p.chromium.launch(
+                        headless=True,
+                        args=['--no-sandbox', '--disable-setuid-sandbox']
+                    )
+                
+                try:
+                    page = await browser.new_page()
                     
-                    # Look for OnlyFans in various patterns
-                    patterns = [
-                        r'<img[^>]*alt=["\']([^"\']*onlyfans[^"\']*)["\'][^>]*>',
-                        r'data-url=["\']([^"\']*onlyfans\.com[^"\']*)["\']',
-                        r'data-href=["\']([^"\']*onlyfans\.com[^"\']*)["\']',
-                        r'<[^>]*>([^<]*onlyfans[^<]*)</[^>]*>'
-                    ]
+                    # Set viewport and user agent
+                    await page.set_viewport_size({"width": 1280, "height": 720})
+                    await page.set_extra_http_headers({
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    })
                     
-                    for pattern in patterns:
+                    # Navigate to page
+                    await page.goto(bio_link, wait_until='networkidle', timeout=15000)
+                    
+                    # Wait for content to load
+                    await page.wait_for_timeout(2000)
+                    
+                    # Check for OnlyFans links
+                    content = await page.content()
+                    for pattern in self.onlyfans_patterns:
                         matches = re.findall(pattern, content, re.IGNORECASE)
                         if matches:
-                            clean_urls = []
-                            for match in matches:
-                                if isinstance(match, tuple):
-                                    match = match[0]
-                                if 'onlyfans' in match.lower():
-                                    of_urls = re.findall(r'https?://[^\s<>"\']*onlyfans\.com[^\s<>"\']*', match, re.IGNORECASE)
-                                    if of_urls:
-                                        clean_urls.extend(of_urls)
-                                    else:
-                                        # Look for username patterns
-                                        username_match = re.search(r'onlyfans\.com/([a-zA-Z0-9_-]+)', match, re.IGNORECASE)
-                                        if username_match:
-                                            username = username_match.group(1)
-                                            clean_urls.append(f"https://onlyfans.com/{username}")
-                            
-                            if clean_urls:
-                                self.results["has_onlyfans"] = True
-                                self.results["onlyfans_urls"] = list(set(clean_urls))
-                                self.results["debug_info"].append(f"Found OnlyFans with pattern: {pattern[:30]}...")
-                                return True
-                                
+                            await browser.close()
+                            return {'has_onlyfans': True, 'onlyfans_urls': matches}
+                    
+                    # Try interactive clicking for specific platforms
+                    platform = self._get_platform(bio_link)
+                    if platform in self.platform_patterns:
+                        result = await self._interactive_platform_detection(page, platform)
+                        if result['has_onlyfans']:
+                            await browser.close()
+                            return result
+                    
+                    await browser.close()
+                    return {'has_onlyfans': False, 'onlyfans_urls': []}
+                    
+                except Exception as e:
+                    await browser.close()
+                    raise e
+                    
         except Exception as e:
-            self.results["errors"].append(f"Enhanced link extraction failed: {str(e)}")
-            
-        return False
+            logger.warning(f"Playwright detection failed: {e}")
+            # Try alternative approaches for specific platforms
+            return await self._alternative_platform_detection(bio_link)
 
-    async def _desperate_mode_extraction(self, bio_link: str) -> bool:
-        """Desperate mode: Try anything to find OnlyFans information"""
+    async def _interactive_platform_detection(self, page, platform: str) -> Dict:
+        """Interactive detection for specific platforms"""
         try:
-            self.results["debug_info"].append("Desperate mode: Trying aggressive extraction...")
+            platform_config = self.platform_patterns[platform]
             
-            # Try with multiple different approaches
-            approaches = [
-                # Approach 1: Mobile user agent with different headers
-                {
-                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1.2 Mobile/15E148 Safari/604.1',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.5',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                # Approach 2: Desktop user agent with minimal headers
-                {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept': '*/*',
-                    'Accept-Language': 'en-US,en;q=0.5'
-                },
-                # Approach 3: Bot-like user agent
-                {
-                    'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+            # Try clicking on interactive elements
+            for selector in platform_config['interactive_elements']:
+                try:
+                    elements = await page.query_selector_all(selector)
+                    for element in elements[:3]:  # Limit to 3 elements
+                        try:
+                            await element.click()
+                            await page.wait_for_timeout(1000)
+                            
+                            # Check content after click
+                            content = await page.content()
+                            for pattern in self.onlyfans_patterns:
+                                matches = re.findall(pattern, content, re.IGNORECASE)
+                                if matches:
+                                    return {'has_onlyfans': True, 'onlyfans_urls': matches}
+                        except:
+                            continue
+                except:
+                    continue
+            
+            return {'has_onlyfans': False, 'onlyfans_urls': []}
+            
+        except Exception as e:
+            logger.warning(f"Interactive detection failed: {e}")
+            return {'has_onlyfans': False, 'onlyfans_urls': []}
+
+    async def _alternative_platform_detection(self, bio_link: str) -> Dict:
+        """Alternative detection methods for specific platforms"""
+        platform = self._get_platform(bio_link)
+        
+        if platform == 'beacons.ai':
+            return await self._beacons_alternative_detection(bio_link)
+        elif platform == 'link.me':
+            return await self._linkme_alternative_detection(bio_link)
+        
+        return {'has_onlyfans': False, 'onlyfans_urls': []}
+
+    async def _beacons_alternative_detection(self, bio_link: str) -> Dict:
+        """Alternative detection for beacons.ai"""
+        try:
+            debug_info.append("Trying alternative approach for beacons.ai...")
+            
+            # Try with different headers and approaches
+            for i, user_agent in enumerate(self.user_agents[:3]):
+                try:
+                    debug_info.append(f"Alternative approach {i+1} for beacons.ai...")
+                    
+                    async with httpx.AsyncClient(timeout=15.0) as client:
+                        headers = {
+                            'User-Agent': user_agent,
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                            'Accept-Language': 'en-US,en;q=0.5',
+                            'Accept-Encoding': 'gzip, deflate',
+                            'Connection': 'keep-alive',
+                            'Upgrade-Insecure-Requests': '1'
+                        }
+                        
+                        response = await client.get(bio_link, headers=headers, follow_redirects=True)
+                        content = response.text.lower()
+                        
+                        # Check for OnlyFans
+                        for pattern in self.onlyfans_patterns:
+                            matches = re.findall(pattern, content, re.IGNORECASE)
+                            if matches:
+                                debug_info.append(f"Alternative approach {i+1} succeeded!")
+                                return {'has_onlyfans': True, 'onlyfans_urls': matches}
+                        
+                except Exception as e:
+                    continue
+            
+            debug_info.append("All alternative approaches failed")
+            return {'has_onlyfans': False, 'onlyfans_urls': []}
+            
+        except Exception as e:
+            logger.warning(f"Beacons alternative detection failed: {e}")
+            return {'has_onlyfans': False, 'onlyfans_urls': []}
+
+    async def _linkme_alternative_detection(self, bio_link: str) -> Dict:
+        """Alternative detection for link.me"""
+        try:
+            # Try with different approaches
+            for i, user_agent in enumerate(self.user_agents[:3]):
+                try:
+                    async with httpx.AsyncClient(timeout=15.0) as client:
+                        headers = {
+                            'User-Agent': user_agent,
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                            'Accept-Language': 'en-US,en;q=0.5',
+                            'Accept-Encoding': 'gzip, deflate',
+                            'Connection': 'keep-alive'
+                        }
+                        
+                        response = await client.get(bio_link, headers=headers, follow_redirects=True)
+                        content = response.text.lower()
+                        
+                        # Check for OnlyFans
+                        for pattern in self.onlyfans_patterns:
+                            matches = re.findall(pattern, content, re.IGNORECASE)
+                            if matches:
+                                return {'has_onlyfans': True, 'onlyfans_urls': matches}
+                        
+                except Exception as e:
+                    continue
+            
+            return {'has_onlyfans': False, 'onlyfans_urls': []}
+            
+        except Exception as e:
+            logger.warning(f"Link.me alternative detection failed: {e}")
+            return {'has_onlyfans': False, 'onlyfans_urls': []}
+
+    async def _final_fallback_extraction(self, bio_link: str) -> Dict:
+        """Final fallback extraction with aggressive text parsing"""
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                # Try with mobile user agent
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_2 like Mac OS X) AppleWebKit/605.1.15',
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
                 }
-            ]
-            
-            async with httpx.AsyncClient(timeout=25.0) as client:
-                for i, headers in enumerate(approaches, 1):
-                    try:
-                        self.results["debug_info"].append(f"Desperate approach {i}: {headers.get('User-Agent', 'Unknown')[:50]}...")
-                        
-                        response = await client.get(bio_link, headers=headers)
-                        
-                        if response.status_code == 200:
-                            content = response.text
-                            
-                            # Look for ANY mention of OnlyFans
-                            if 'onlyfans' in content.lower():
-                                self.results["debug_info"].append(f"OnlyFans found in approach {i}, extracting...")
-                                
-                                # Strategy 1: Extract full URLs
-                                of_urls = re.findall(r'https?://[^\s<>"\']*onlyfans\.com[^\s<>"\']*', content, re.IGNORECASE)
-                                if of_urls:
-                                    self.results["has_onlyfans"] = True
-                                    self.results["onlyfans_urls"] = list(set(of_urls))
-                                    self.results["debug_info"].append("Found OnlyFans URLs in desperate mode")
-                                    return True
-                                
-                                # Strategy 2: Just confirm OnlyFans exists
-                                self.results["has_onlyfans"] = True
-                                self.results["onlyfans_urls"] = ["https://onlyfans.com/detected"]
-                                self.results["debug_info"].append("OnlyFans confirmed to exist in desperate mode")
-                                return True
-                                
-                        elif response.status_code == 403:
-                            self.results["debug_info"].append(f"Approach {i} blocked (403)")
-                        else:
-                            self.results["debug_info"].append(f"Approach {i} status: {response.status_code}")
-                            
-                    except Exception as e:
-                        self.results["debug_info"].append(f"Approach {i} failed: {str(e)[:50]}")
-                        continue
-                        
+                
+                response = await client.get(bio_link, headers=headers, follow_redirects=True)
+                content = response.text.lower()
+                
+                # Aggressive text extraction
+                text_content = re.sub(r'<[^>]+>', ' ', content)
+                text_content = re.sub(r'\s+', ' ', text_content)
+                
+                # Check for OnlyFans patterns in text
+                for pattern in self.onlyfans_patterns:
+                    matches = re.findall(pattern, text_content, re.IGNORECASE)
+                    if matches:
+                        return {'has_onlyfans': True, 'onlyfans_urls': matches}
+                
+                return {'has_onlyfans': False, 'onlyfans_urls': []}
+                
         except Exception as e:
-            self.results["errors"].append(f"Desperate mode extraction failed: {str(e)}")
+            logger.warning(f"Final fallback extraction failed: {e}")
+            return {'has_onlyfans': False, 'onlyfans_urls': []}
+
+    async def _desperate_mode_extraction(self, bio_link: str) -> Dict:
+        """Desperate mode - try everything possible"""
+        try:
+            debug_info.append("Desperate mode: Trying aggressive extraction...")
             
-        return False
+            # Try multiple user agents and approaches
+            for i, user_agent in enumerate(self.user_agents):
+                try:
+                    debug_info.append(f"Desperate approach {i+1}: {user_agent[:50]}...")
+                    
+                    async with httpx.AsyncClient(timeout=15.0) as client:
+                        headers = {
+                            'User-Agent': user_agent,
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                            'Accept-Language': 'en-US,en;q=0.5',
+                            'Accept-Encoding': 'gzip, deflate',
+                            'Connection': 'keep-alive',
+                            'Cache-Control': 'no-cache'
+                        }
+                        
+                        response = await client.get(bio_link, headers=headers, follow_redirects=True)
+                        content = response.text.lower()
+                        
+                        # Check for OnlyFans
+                        for pattern in self.onlyfans_patterns:
+                            matches = re.findall(pattern, content, re.IGNORECASE)
+                            if matches:
+                                debug_info.append(f"OnlyFans found in approach {i+1}, extracting...")
+                                debug_info.append("OnlyFans confirmed to exist in desperate mode")
+                                return {'has_onlyfans': True, 'onlyfans_urls': matches}
+                        
+                        # Check for blocked responses
+                        if response.status_code == 403:
+                            debug_info.append(f"Approach {i+1} blocked (403)")
+                            continue
+                        
+                except Exception as e:
+                    continue
+            
+            debug_info.append("All desperate approaches failed")
+            return {'has_onlyfans': False, 'onlyfans_urls': []}
+            
+        except Exception as e:
+            logger.warning(f"Desperate mode extraction failed: {e}")
+            return {'has_onlyfans': False, 'onlyfans_urls': []}
+
+    def _get_platform(self, url: str) -> str:
+        """Extract platform from URL"""
+        domain = urlparse(url).netloc.lower()
+        if 'link.me' in domain:
+            return 'link.me'
+        elif 'beacons.ai' in domain:
+            return 'beacons.ai'
+        elif 'taplink.cc' in domain:
+            return 'taplink.cc'
+        return 'unknown'
+
+    def _format_result(self, has_onlyfans: bool, onlyfans_urls: List[str], 
+                      detection_method: Optional[str], debug_info: List[str], 
+                      errors: List[str], start_time: float) -> Dict:
+        """Format the final result"""
+        processing_time = time.time() - start_time
+        
+        return {
+            'has_onlyfans': has_onlyfans,
+            'onlyfans_urls': onlyfans_urls,
+            'detection_method': detection_method,
+            'debug_info': debug_info,
+            'errors': errors,
+            'processing_time': round(processing_time, 2)
+        }
+
+# Global detector instance
+detector = OnlyFansDetector()
 
 async def detect_onlyfans_in_bio_link(bio_link: str) -> Dict:
-    """Main function for n8n integration"""
-    detector = HybridFinalDetector()
-    return await detector.detect_onlyfans(bio_link)
+    """
+    Main function to detect OnlyFans links in a bio link
+    """
+    return await detector.detect_onlyfans_in_bio_link(bio_link)
 
-def main():
-    """Command line interface for n8n integration"""
-    import sys
-    import json
-    if len(sys.argv) != 2:
-        print("Usage: python onlyfans_detector_hybrid_final.py <bio_link>")
-        sys.exit(1)
-        
-    bio_link = sys.argv[1]
-    
-    async def run_detection():
-        result = await detect_onlyfans_in_bio_link(bio_link)
-        print(json.dumps(result, indent=2))
-        
-    asyncio.run(run_detection())
-
+# For testing
 if __name__ == "__main__":
-    main()
+    async def test():
+        test_links = [
+            "https://link.me/kaylasummers",
+            "https://beacons.ai/zoeneli",
+            "https://taplink.cc/passionasian"
+        ]
+        
+        for link in test_links:
+            print(f"\nTesting: {link}")
+            result = await detect_onlyfans_in_bio_link(link)
+            print(f"Result: {result['has_onlyfans']}")
+            print(f"Method: {result['detection_method']}")
+            print(f"URLs: {result['onlyfans_urls']}")
+    
+    asyncio.run(test())
