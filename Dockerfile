@@ -12,16 +12,12 @@ RUN pip install --no-cache-dir -r requirements.txt \
 # Copy the rest of the app
 COPY . .
 
-# Make the start script executable
-RUN chmod +x start.sh
-
 # Environment
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-# Railway provides PORT env var
-ENV PORT=8080
+# Expose port 8080
 EXPOSE 8080
 
-# Start the server using the shell script
-CMD ["./start.sh"]
+# Start the server with explicit port handling
+CMD gunicorn api_server:app --bind 0.0.0.0:8080
