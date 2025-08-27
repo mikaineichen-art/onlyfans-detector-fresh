@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["libglib", "nss", "nspr", "dbus", "atk", "atk-bridge", "cups", "libdrm", "xcb", "xkbcommon", "atspi", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "libgbm", "pango", "cairo", "alsa-lib"]
+
+[phases.install]
+cmds = ["python -m playwright install chromium"]
+
+[start]
+cmd = "gunicorn api_server:app --bind 0.0.0.0:$PORT"
