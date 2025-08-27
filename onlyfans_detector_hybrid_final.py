@@ -19,32 +19,69 @@ try:
     from playwright.async_api import async_playwright
     PLAYWRIGHT_AVAILABLE = True
     
-    # Try to install browsers if not available
+    # Railway-specific Playwright installation
     try:
         import subprocess
         import sys
-        # Try to install chromium specifically for Railway
+        import platform
+        
+        print("🚀 Setting up Playwright for Railway...")
+        
+        # Step 1: Install browsers
         result = subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], 
-                              capture_output=True, text=True, timeout=60)
+                              capture_output=True, text=True, timeout=120)
         if result.returncode == 0:
             print("✅ Playwright browsers installed successfully")
         else:
-            print(f"⚠️  Playwright browser installation: {result.stderr}")
-            # Try to install dependencies if browsers fail
+            print(f"⚠️  Browser installation failed: {result.stderr}")
+            
+            # Step 2: Try to install system dependencies
             try:
                 result2 = subprocess.run([sys.executable, "-m", "playwright", "install-deps"], 
-                                       capture_output=True, text=True, timeout=60)
+                                       capture_output=True, text=True, timeout=120)
                 if result2.returncode == 0:
-                    print("✅ Playwright dependencies installed successfully")
+                    print("✅ System dependencies installed successfully")
                     # Try browser installation again
                     result3 = subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], 
-                                           capture_output=True, text=True, timeout=60)
+                                           capture_output=True, text=True, timeout=120)
                     if result3.returncode == 0:
                         print("✅ Playwright browsers installed after dependencies")
                     else:
                         print(f"⚠️  Browser installation still failed: {result3.stderr}")
                 else:
-                    print(f"⚠️  Dependency installation failed: {result2.stderr}")
+                    print(f"⚠️  Standard dependency installation failed: {result2.stderr}")
+                    
+                    # Step 3: Try alternative Linux package installation
+                    if platform.system() == "Linux":
+                        print("🐧 Linux detected, trying alternative package installation...")
+                        apt_packages = [
+                            "libglib2.0-0", "libnss3", "libnspr4", "libdbus-1-3",
+                            "libatk1.0-0", "libatk-bridge2.0-0", "libcups2",
+                            "libdrm2", "libxcb1", "libxkbcommon0", "libatspi2.0-0",
+                            "libx11-6", "libxcomposite1", "libxdamage1", "libxext6",
+                            "libxfixes3", "libxrandr2", "libgbm1", "libpango-1.0-0",
+                            "libcairo2", "libasound2"
+                        ]
+                        
+                        for package in apt_packages:
+                            try:
+                                result4 = subprocess.run(["apt-get", "install", "-y", package], 
+                                                       capture_output=True, text=True, timeout=30)
+                                if result4.returncode == 0:
+                                    print(f"✅ Installed {package}")
+                                else:
+                                    print(f"⚠️  Failed to install {package}")
+                            except Exception as e:
+                                print(f"⚠️  Could not install {package}: {e}")
+                        
+                        # Try browser installation one more time
+                        result5 = subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], 
+                                               capture_output=True, text=True, timeout=120)
+                        if result5.returncode == 0:
+                            print("✅ Playwright browsers installed after alternative dependency installation")
+                        else:
+                            print(f"⚠️  Final browser installation attempt failed: {result5.stderr}")
+                            
             except Exception as e:
                 print(f"⚠️  Could not install Playwright dependencies: {e}")
                 
