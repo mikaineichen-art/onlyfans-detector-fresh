@@ -47,8 +47,11 @@ RUN playwright install chromium
 # Copy the rest of the app
 COPY . .
 
+# Make the start script executable
+RUN chmod +x start.sh
+
 # Expose port (Railway will provide actual PORT)
 EXPOSE 8080
 
-# Start the server with Railway's PORT environment variable
-CMD gunicorn api_server:app --bind 0.0.0.0:${PORT:-8080} --log-level info
+# Start the server using the shell script
+CMD ["./start.sh"]
