@@ -694,6 +694,31 @@ class HybridFinalDetector:
                     has_onlyfans_mention = 'onlyfans' in content.lower()
                     self.results["debug_info"].append(f"Contains 'onlyfans' (case-insensitive): {has_onlyfans_mention}")
                     
+                    # NEW: Check for age verification indicators (this is the key insight!)
+                    age_verification_indicators = [
+                        '18+', '18 plus', 'age verification', 'age gate', 'age check',
+                        'confirm age', 'verify age', 'enter site', 'i\'m 18+', 'i am 18+',
+                        'adult content', 'mature content', 'nsfw', 'explicit content',
+                        'click to enter', 'proceed to site', 'continue to site',
+                        'age confirmation', 'age verification required', 'adult warning',
+                        'mature warning', 'explicit warning', 'adult site', 'mature site'
+                    ]
+                    
+                    age_verification_found = False
+                    found_indicators = []
+                    
+                    for indicator in age_verification_indicators:
+                        if indicator.lower() in content.lower():
+                            age_verification_found = True
+                            found_indicators.append(indicator)
+                    
+                    self.results["debug_info"].append(f"Age verification indicators found: {age_verification_found}")
+                    if found_indicators:
+                        self.results["debug_info"].append(f"Found indicators: {found_indicators[:5]}...")  # Show first 5
+                    
+                    # NEW: Decision logic - if we find age verification, it's likely OnlyFans content
+                    age_verification_detected = age_verification_found
+                    self.results["debug_info"].append(f"Overall age verification detected: {age_verification_detected}")
                     # Debug: Show HTML preview
                     html_preview = content[:1000] if len(content) > 1000 else content
                     self.results["debug_info"].append(f"Raw HTML preview (first 1000 chars):\n{html_preview}")
@@ -743,6 +768,14 @@ class HybridFinalDetector:
                         return True
                     else:
                         self.results["debug_info"].append("No OnlyFans mention found in content")
+                    elif age_verification_detected:
+                        # NEW: Age verification found = high probability of OnlyFans
+                        self.results["debug_info"].append("Age verification detected - high probability of OnlyFans content")
+                        self.results["has_onlyfans"] = True
+                        self.results["onlyfans_urls"] = ["https://onlyfans.com/detected"]
+                        self.results["debug_info"].append("OnlyFans confirmed via age verification detection")
+                        self.results["debug_info"].append("=== END DEBUG ===")
+                        return True
                 
                 # Strategy 2: Try with mobile user agent
                 self.results["debug_info"].append("Trying mobile user agent approach...")
@@ -759,6 +792,15 @@ class HybridFinalDetector:
                     content = response.text
                     mobile_has_onlyfans = 'onlyfans' in content.lower()
                     self.results["debug_info"].append(f"Mobile approach - Contains 'onlyfans': {mobile_has_onlyfans}")
+                    # NEW: Check for age verification in mobile response too
+                    mobile_age_verification = any(indicator.lower() in content.lower() for indicator in age_verification_indicators)
+                    self.results["debug_info"].append(f"Mobile approach - Age verification detected: {mobile_age_verification}")
+                    
+                    if mobile_has_onlyfans or mobile_age_verification:
+                        self.results["has_onlyfans"] = True
+                        self.results["onlyfans_urls"] = ["https://onlyfans.com/detected"]
+                        self.results["debug_info"].append("=== END DEBUG ===")
+                        return True
                     
                     if mobile_has_onlyfans:
                         self.results["debug_info"].append("OnlyFans found in link.me via mobile fallback")
@@ -778,6 +820,15 @@ class HybridFinalDetector:
                     content = response.text
                     referrer_has_onlyfans = 'onlyfans' in content.lower()
                     self.results["debug_info"].append(f"Referrer approach - Contains 'onlyfans': {referrer_has_onlyfans}")
+                    # NEW: Check for age verification in referrer response too
+                    referrer_age_verification = any(indicator.lower() in content.lower() for indicator in age_verification_indicators)
+                    self.results["debug_info"].append(f"Referrer approach - Age verification detected: {referrer_age_verification}")
+                    
+                    if referrer_has_onlyfans or referrer_age_verification:
+                        self.results["has_onlyfans"] = True
+                        self.results["onlyfans_urls"] = ["https://onlyfans.com/detected"]
+                        self.results["debug_info"].append("=== END DEBUG ===")
+                        return True
                     
                     if referrer_has_onlyfans:
                         self.results["debug_info"].append("OnlyFans found in link.me via referrer fallback")
