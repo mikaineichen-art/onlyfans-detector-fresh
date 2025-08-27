@@ -2,7 +2,7 @@
 nixPkgs = ["glib", "nss", "nspr", "dbus", "atk", "cups", "pango", "cairo"]
 
 [phases.install]
-cmds = ["python -m playwright install chromium"]
+cmds = ["pip install playwright", "playwright install chromium"]
 
 [start]
 cmd = "gunicorn api_server:app --bind 0.0.0.0:$PORT"
