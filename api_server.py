@@ -123,33 +123,67 @@ def batch_detect():
                 "error": "bio_links must be an array"
             }), 400
         
-        if len(bio_links) > 15:  # Limit batch size to prevent Railway crashes
+        if len(bio_links) > 100:  # Reasonable upper limit
             return jsonify({
-                "error": f"Maximum 15 bio links per batch. Received {len(bio_links)} URLs. Please split into smaller batches.",
+                "error": f"Maximum 100 bio links per batch. Received {len(bio_links)} URLs.",
                 "received_count": len(bio_links),
-                "max_allowed": 15
+                "max_allowed": 100
             }), 400
         
         logger.info(f"Processing batch of {len(bio_links)} bio links")
         
-        # Process each bio link
-        results = []
-        for i, bio_link in enumerate(bio_links):
-            logger.info(f"Processing URL {i+1}/{len(bio_links)}: {bio_link}")
-            try:
-                result = asyncio.run(detect_onlyfans_in_bio_link(bio_link))
-                result['request'] = {'bio_link': bio_link}
-                results.append(result)
-            except Exception as e:
-                results.append({
-                    "error": f"Failed to process {bio_link}: {str(e)}",
-                    "bio_link": bio_link,
-                    "has_onlyfans": False,
-                    "onlyfans_urls": [],
-                    "detection_method": None,
-                    "errors": [str(e)],
-                    "debug_info": []
-                })
+        # Process bio links asynchronously with concurrency control
+        async def process_batch():
+            import asyncio
+            from concurrent.futures import ThreadPoolExecutor
+            
+            # Limit concurrent requests to prevent resource exhaustion
+            max_concurrent = min(5, len(bio_links))
+            semaphore = asyncio.Semaphore(max_concurrent)
+            
+            async def process_single_url(bio_link):
+                async with semaphore:
+                    try:
+                        logger.info(f"Processing: {bio_link}")
+                        result = await detect_onlyfans_in_bio_link(bio_link)
+                        result['request'] = {'bio_link': bio_link}
+                        return result
+                    except Exception as e:
+                        logger.error(f"Failed to process {bio_link}: {str(e)}")
+                        return {
+                            "error": f"Failed to process {bio_link}: {str(e)}",
+                            "bio_link": bio_link,
+                            "has_onlyfans": False,
+                            "onlyfans_urls": [],
+                            "detection_method": None,
+                            "errors": [str(e)],
+                            "debug_info": []
+                        }
+            
+            # Process all URLs concurrently with controlled concurrency
+            tasks = [process_single_url(bio_link) for bio_link in bio_links]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Handle any exceptions that weren't caught
+            processed_results = []
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    processed_results.append({
+                        "error": f"Failed to process {bio_links[i]}: {str(result)}",
+                        "bio_link": bio_links[i],
+                        "has_onlyfans": False,
+                        "onlyfans_urls": [],
+                        "detection_method": None,
+                        "errors": [str(result)],
+                        "debug_info": []
+                    })
+                else:
+                    processed_results.append(result)
+            
+            return processed_results
+        
+        # Run the async batch processing
+        results = asyncio.run(process_batch())
         
         return jsonify(results)
         
