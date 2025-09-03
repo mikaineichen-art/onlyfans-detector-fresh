@@ -132,58 +132,40 @@ def batch_detect():
         
         logger.info(f"Processing batch of {len(bio_links)} bio links")
         
-        # Process bio links asynchronously with concurrency control
-        async def process_batch():
-            import asyncio
-            from concurrent.futures import ThreadPoolExecutor
-            
-            # Limit concurrent requests to prevent resource exhaustion
-            max_concurrent = min(5, len(bio_links))
-            semaphore = asyncio.Semaphore(max_concurrent)
-            
-            async def process_single_url(bio_link):
-                async with semaphore:
-                    try:
-                        logger.info(f"Processing: {bio_link}")
-                        result = await detect_onlyfans_in_bio_link(bio_link)
-                        result['request'] = {'bio_link': bio_link}
-                        return result
-                    except Exception as e:
-                        logger.error(f"Failed to process {bio_link}: {str(e)}")
-                        return {
-                            "error": f"Failed to process {bio_link}: {str(e)}",
-                            "bio_link": bio_link,
-                            "has_onlyfans": False,
-                            "onlyfans_urls": [],
-                            "detection_method": None,
-                            "errors": [str(e)],
-                            "debug_info": []
-                        }
-            
-            # Process all URLs concurrently with controlled concurrency
-            tasks = [process_single_url(bio_link) for bio_link in bio_links]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            # Handle any exceptions that weren't caught
-            processed_results = []
-            for i, result in enumerate(results):
-                if isinstance(result, Exception):
-                    processed_results.append({
-                        "error": f"Failed to process {bio_links[i]}: {str(result)}",
-                        "bio_link": bio_links[i],
-                        "has_onlyfans": False,
-                        "onlyfans_urls": [],
-                        "detection_method": None,
-                        "errors": [str(result)],
-                        "debug_info": []
-                    })
-                else:
-                    processed_results.append(result)
-            
-            return processed_results
-        
-        # Run the async batch processing
-        results = asyncio.run(process_batch())
+        # Process each bio link with timeout protection
+        results = []
+        for i, bio_link in enumerate(bio_links):
+            try:
+                logger.info(f"Processing URL {i+1}/{len(bio_links)}: {bio_link}")
+                # Add timeout to prevent hanging
+                result = asyncio.wait_for(
+                    detect_onlyfans_in_bio_link(bio_link), 
+                    timeout=30.0  # 30 second timeout per URL
+                )
+                result['request'] = {'bio_link': bio_link}
+                results.append(result)
+            except asyncio.TimeoutError:
+                logger.error(f"Timeout processing {bio_link}")
+                results.append({
+                    "error": f"Timeout processing {bio_link}",
+                    "bio_link": bio_link,
+                    "has_onlyfans": False,
+                    "onlyfans_urls": [],
+                    "detection_method": None,
+                    "errors": ["Timeout after 30 seconds"],
+                    "debug_info": []
+                })
+            except Exception as e:
+                logger.error(f"Failed to process {bio_link}: {str(e)}")
+                results.append({
+                    "error": f"Failed to process {bio_link}: {str(e)}",
+                    "bio_link": bio_link,
+                    "has_onlyfans": False,
+                    "onlyfans_urls": [],
+                    "detection_method": None,
+                    "errors": [str(e)],
+                    "debug_info": []
+                })
         
         return jsonify(results)
         
