@@ -1,17 +1,20 @@
 [phases.setup]
-nixPkgs = ["python311", "python311Packages.pip", "python311Packages.virtualenv", "chromium"]
+nixPkgs = ["python311", "python311Packages.pip", "python311Packages.virtualenv"]
 
 [phases.install]
 cmds = [
     "python -m venv /opt/venv",
     "source /opt/venv/bin/activate",
-    "pip install -r requirements.txt",
-    "playwright install chromium",
-    "playwright install-deps"
+    "pip install -r requirements.txt"
 ]
 
 [phases.build]
-cmds = ["echo 'Build phase completed'"]
+cmds = [
+    "echo 'Build phase starting...'",
+    "playwright install chromium || echo 'Playwright install failed, continuing...'",
+    "playwright install-deps || echo 'Playwright deps install failed, continuing...'",
+    "echo 'Build phase completed'"
+]
 
 [start]
 cmd = "./start.sh"
