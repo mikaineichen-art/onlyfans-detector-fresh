@@ -123,9 +123,11 @@ def batch_detect():
                 "error": "bio_links must be an array"
             }), 400
         
-        if len(bio_links) > 50:  # Limit batch size
+        if len(bio_links) > 15:  # Limit batch size to prevent Railway crashes
             return jsonify({
-                "error": "Maximum 50 bio links per batch"
+                "error": f"Maximum 15 bio links per batch. Received {len(bio_links)} URLs. Please split into smaller batches.",
+                "received_count": len(bio_links),
+                "max_allowed": 15
             }), 400
         
         logger.info(f"Processing batch of {len(bio_links)} bio links")
