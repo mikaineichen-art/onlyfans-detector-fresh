@@ -106,10 +106,13 @@ def batch_detect():
         if isinstance(data, list):
             # Raw array format: ["url1", "url2"]
             bio_links = data
+            logger.info(f"Received raw array format with {len(bio_links)} URLs")
         elif isinstance(data, dict) and 'bio_links' in data:
             # Object format: {"bio_links": ["url1", "url2"]}
             bio_links = data['bio_links']
+            logger.info(f"Received object format with {len(bio_links)} URLs")
         else:
+            logger.error(f"Invalid data format received: {type(data)}")
             return jsonify({
                 "error": "Invalid format. Send either {\"bio_links\": [\"url1\", \"url2\"]} or [\"url1\", \"url2\"]",
                 "usage": "Send POST with JSON: {\"bio_links\": [\"url1\", \"url2\"]} or [\"url1\", \"url2\"]"
@@ -129,7 +132,8 @@ def batch_detect():
         
         # Process each bio link
         results = []
-        for bio_link in bio_links:
+        for i, bio_link in enumerate(bio_links):
+            logger.info(f"Processing URL {i+1}/{len(bio_links)}: {bio_link}")
             try:
                 result = asyncio.run(detect_onlyfans_in_bio_link(bio_link))
                 result['request'] = {'bio_link': bio_link}
