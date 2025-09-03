@@ -138,10 +138,10 @@ def batch_detect():
             try:
                 logger.info(f"Processing URL {i+1}/{len(bio_links)}: {bio_link}")
                 # Add timeout to prevent hanging
-                result = asyncio.wait_for(
+                result = asyncio.run(asyncio.wait_for(
                     detect_onlyfans_in_bio_link(bio_link), 
                     timeout=30.0  # 30 second timeout per URL
-                )
+                ))
                 result['request'] = {'bio_link': bio_link}
                 results.append(result)
             except asyncio.TimeoutError:
