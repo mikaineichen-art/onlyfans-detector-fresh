@@ -102,13 +102,18 @@ def batch_detect():
     try:
         data = request.get_json()
         
-        if not data or 'bio_links' not in data:
+        # Handle both formats: {"bio_links": [...]} and raw array [...]
+        if isinstance(data, list):
+            # Raw array format: ["url1", "url2"]
+            bio_links = data
+        elif isinstance(data, dict) and 'bio_links' in data:
+            # Object format: {"bio_links": ["url1", "url2"]}
+            bio_links = data['bio_links']
+        else:
             return jsonify({
-                "error": "Missing bio_links parameter",
-                "usage": "Send POST with JSON: {\"bio_links\": [\"url1\", \"url2\"]}"
+                "error": "Invalid format. Send either {\"bio_links\": [\"url1\", \"url2\"]} or [\"url1\", \"url2\"]",
+                "usage": "Send POST with JSON: {\"bio_links\": [\"url1\", \"url2\"]} or [\"url1\", \"url2\"]"
             }), 400
-        
-        bio_links = data['bio_links']
         
         if not isinstance(bio_links, list):
             return jsonify({
