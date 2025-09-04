@@ -701,7 +701,11 @@ class HybridFinalDetector:
                         'adult content', 'mature content', 'nsfw', 'explicit content',
                         'click to enter', 'proceed to site', 'continue to site',
                         'age confirmation', 'age verification required', 'adult warning',
-                        'mature warning', 'explicit warning', 'adult site', 'mature site'
+                        'mature warning', 'explicit warning', 'adult site', 'mature site',
+                        'are you 18', 'are you over 18', 'you must be 18', 'you are 18',
+                        'yes i am 18', 'yes i\'m 18', 'i am over 18', 'i\'m over 18',
+                        'view sensitive content', 'sensitive content', 'adult confirmation',
+                        'confirm you are 18', 'age restricted', 'age-restricted', '18 years'
                     ]
                     
                     age_verification_found = False
@@ -712,6 +716,28 @@ class HybridFinalDetector:
                         if indicator.lower() in content.lower():
                             age_verification_found = True
                             found_indicators.append(indicator)
+
+                    # Regex-based signals that often appear in age prompts
+                    regex_age_patterns = [
+                        r"\b18\s*\+\b",
+                        r"\b18\s*years?\b",
+                        r"\bover\s*18\b",
+                        r"\bmust\s*be\s*18\b",
+                        r"\bare\s*you\s*(over\s*)?18\b",
+                        r"\bi\s*am\s*(over\s*)?18\b",
+                        r"\byes[, ]?\s*i\s*(am|'m)\s*(over\s*)?18\b",
+                        r"\bage[- ]?restricted\b",
+                        r"\bsensitive\s*content\b",
+                        r"\bexplicit\s*content\b",
+                        r"\badult\s*(only|content)\b",
+                    ]
+                    for pattern in regex_age_patterns:
+                        try:
+                            if re.search(pattern, content, re.IGNORECASE):
+                                age_verification_found = True
+                                found_indicators.append(f"/regex/{pattern}/")
+                        except re.error:
+                            pass
                     
                     self.results["debug_info"].append(f"Age verification indicators found: {age_verification_found}")
                     if found_indicators:
@@ -781,8 +807,6 @@ class HybridFinalDetector:
                         self.results["debug_info"].append("OnlyFans confirmed in link.me via fallback")
                         self.results["debug_info"].append("=== END DEBUG ===")
                         return True
-                    elif self.results.get("age_verification_detected", False):
-                        self.results["debug_info"].append("No OnlyFans mention found in content")
                     elif self.results.get("age_verification_detected", False):
                         # NEW: Age verification found = high probability of OnlyFans
                         self.results["debug_info"].append("Age verification detected - high probability of OnlyFans content")
