@@ -32,7 +32,7 @@ try:
                               capture_output=True, text=True, timeout=120)
         if result.returncode == 0:
             print("✅ Playwright browsers installed successfully")
-        elif self.results.get("age_verification_detected", False):
+        else:
             print(f"⚠️  Browser installation failed: {result.stderr}")
             
             # Step 2: Try to install system dependencies
@@ -46,9 +46,9 @@ try:
                                            capture_output=True, text=True, timeout=120)
                     if result3.returncode == 0:
                         print("✅ Playwright browsers installed after dependencies")
-                    elif self.results.get("age_verification_detected", False):
+                    else:
                         print(f"⚠️  Browser installation still failed: {result3.stderr}")
-                elif self.results.get("age_verification_detected", False):
+                else:
                     print(f"⚠️  Standard dependency installation failed: {result2.stderr}")
                     
                     # Step 3: Try alternative Linux package installation
@@ -69,7 +69,7 @@ try:
                                                         capture_output=True, text=True, timeout=30)
                                 if result4.returncode == 0:
                                     print(f"✅ Installed {package}")
-                                elif self.results.get("age_verification_detected", False):
+                                else:
                                     print(f"⚠️  Failed to install {package}")
                             except Exception as e:
                                 print(f"⚠️  Could not install {package}: {e}")
@@ -79,7 +79,7 @@ try:
                                                capture_output=True, text=True, timeout=120)
                         if result5.returncode == 0:
                             print("✅ Playwright browsers installed after alternative dependency installation")
-                        elif self.results.get("age_verification_detected", False):
+                        else:
                             print(f"⚠️  Final browser installation attempt failed: {result5.stderr}")
                             
             except Exception as e:
@@ -709,6 +709,7 @@ class HybridFinalDetector:
                     
                     for indicator in age_verification_indicators:
                         # Search in entire content, not just first 1000 chars
+                        if indicator.lower() in content.lower():
                             age_verification_found = True
                             found_indicators.append(indicator)
                     
@@ -717,13 +718,22 @@ class HybridFinalDetector:
                         self.results["debug_info"].append(f"Found indicators: {found_indicators[:5]}...")  # Show first 5
                     
                     # NEW: Decision logic - if we find age verification, it's likely OnlyFans content
-                    age_verification_detected = (age_verification_found or js_age_found or popup_found or data_age_found or css_age_found or meta_age_found or script_age_found)
+                    age_verification_detected = age_verification_found
                     self.results["debug_info"].append(f"Overall age verification detected: {age_verification_detected}")
                     # Store age verification status in results for other methods to access
                     self.results["age_verification_detected"] = age_verification_detected
                     # Debug: Show HTML preview
                     html_preview = content[:1000] if len(content) > 1000 else content
                     self.results["debug_info"].append(f"Raw HTML preview (first 1000 chars):\n{html_preview}")
+                    
+                    # Early return: age gate is a strong signal of OnlyFans presence
+                    if age_verification_detected:
+                        self.results["has_onlyfans"] = True
+                        self.results["onlyfans_urls"] = ["https://onlyfans.com/detected"]
+                        self.results["detection_method"] = "Phase 3.5: Age-gate signal"
+                        self.results["debug_info"].append("Early return due to age-gate signal")
+                        self.results["debug_info"].append("=== END DEBUG ===")
+                        return True
                     
                     # Enhanced detection patterns
                     detection_patterns = [
