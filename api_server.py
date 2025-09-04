@@ -40,6 +40,12 @@ def detect_onlyfans():
             }), 400
         
         bio_link = data['bio_link']
+        # Normalize if a dict was sent (n8n sometimes sends objects)
+        if isinstance(bio_link, dict):
+            for key in ['external_url', 'url', 'link', 'profile_url', 'bio_link']:
+                if key in bio_link and isinstance(bio_link[key], str) and bio_link[key].strip():
+                    bio_link = bio_link[key]
+                    break
         
         logger.info(f"Processing bio link: {bio_link}")
         
@@ -130,6 +136,21 @@ def batch_detect():
                 "max_allowed": 100
             }), 400
         
+        # Normalize any dict entries to URLs
+        normalized_links = []
+        for item in bio_links:
+            if isinstance(item, dict):
+                extracted = None
+                for key in ['external_url', 'url', 'link', 'profile_url', 'bio_link']:
+                    if key in item and isinstance(item[key], str) and item[key].strip():
+                        extracted = item[key]
+                        break
+                normalized_links.append(extracted if extracted else item)
+            else:
+                normalized_links.append(item)
+
+        bio_links = normalized_links
+
         logger.info(f"Processing batch of {len(bio_links)} bio links")
         
         # Process each bio link with timeout protection
