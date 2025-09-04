@@ -727,6 +727,7 @@ class HybridFinalDetector:
                     self.results["debug_info"].append(f"Raw HTML preview (first 1000 chars):\n{html_preview}")
                     
                     # Early return: age gate is a strong signal of OnlyFans presence
+                    self.results["debug_info"].append(f"DEBUG: age_verification_detected = {age_verification_detected}")
                     if age_verification_detected:
                         self.results["has_onlyfans"] = True
                         self.results["onlyfans_urls"] = ["https://onlyfans.com/detected"]
@@ -734,6 +735,8 @@ class HybridFinalDetector:
                         self.results["debug_info"].append("Early return due to age-gate signal")
                         self.results["debug_info"].append("=== END DEBUG ===")
                         return True
+                    else:
+                        self.results["debug_info"].append("DEBUG: Early return NOT triggered - age_verification_detected is False")
                     
                     # Enhanced detection patterns
                     detection_patterns = [
