@@ -1,7 +1,7 @@
 [deploy]
 healthcheckPath = "/health"
 healthcheckTimeout = 300
-startCommand = "./start.sh"
+startCommand = "./start_clean.sh"
 
 [build]
 builder = "nixpacks"
